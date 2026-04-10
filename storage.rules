@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Temporary development rule.
+    // This opens Storage completely so product image uploads work while you debug auth.
+    // Replace with seller-specific rules before release.
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
