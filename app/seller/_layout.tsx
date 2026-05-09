@@ -9,15 +9,19 @@ import { useAuth } from "../../hooks/useAuth";
 export default function SellerLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const { loading, user, profile } = useAuth();
+  const { authReady, user, profile } = useAuth();
 
   useEffect(() => {
-    if (loading) {
+    if (!authReady) {
       return;
     }
 
     if (!user) {
       router.replace("/(auth)/login");
+      return;
+    }
+
+    if (user && !profile) {
       return;
     }
 
@@ -29,9 +33,9 @@ export default function SellerLayout() {
     if (profile?.role === "seller" && pathname === "/seller/register") {
       router.replace("/seller/dashboard");
     }
-  }, [loading, pathname, profile?.role, router, user]);
+  }, [authReady, pathname, profile, router, user]);
 
-  if (loading) {
+  if (!authReady || (user && !profile)) {
     return <FullScreenLoader label="Opening seller portal..." />;
   }
 

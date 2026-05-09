@@ -7,7 +7,7 @@ import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
 import { colors, spacing } from "../constants/theme";
-import { useAuth } from "../hooks/useAuth";
+import { useRequireAuth } from "../hooks/useRequireAuth";
 import { fetchWishlistProducts, toggleWishlist } from "../lib/firebaseApi";
 import { showToast } from "../lib/toast";
 import { useCartStore } from "../store/cartStore";
@@ -15,7 +15,7 @@ import { Product } from "../types";
 
 export default function WishlistScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useRequireAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [products, setProducts] = useState<Product[]>([]);
 

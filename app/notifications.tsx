@@ -4,14 +4,14 @@ import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import EmptyState from "../components/EmptyState";
 import { colors, radius, spacing } from "../constants/theme";
-import { useAuth } from "../hooks/useAuth";
+import { useRequireAuth } from "../hooks/useRequireAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { formatDate } from "../lib/utils";
 import { AppNotification } from "../types";
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useRequireAuth();
   const { notifications, unreadCount, loading, markAllAsRead, markAsRead } =
     useNotifications(user?.uid);
 

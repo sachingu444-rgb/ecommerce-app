@@ -32,7 +32,7 @@ import {
 import { getResolvedProductListing } from "../../lib/productListing";
 import { showToast } from "../../lib/toast";
 import { formatCurrency, formatDate } from "../../lib/utils";
-import { useCartStore } from "../../store/cartStore";
+import { CartStoreState, useCartStore } from "../../store/cartStore";
 import { Product, Review } from "../../types";
 
 const CompactCard = ({ product, onPress }: { product: Product; onPress: () => void }) => (
@@ -84,8 +84,8 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, profile } = useAuth();
   const { width } = useWindowDimensions();
-  const addItem = useCartStore((state: any) => state.addItem);
-  const cartCount = useCartStore((state: any) => state.totalItems());
+  const addItem = useCartStore((state: CartStoreState) => state.addItem);
+  const cartCount = useCartStore((state: CartStoreState) => state.totalItems());
   const [product, setProduct] = useState<Product | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);

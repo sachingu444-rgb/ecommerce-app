@@ -4,6 +4,13 @@ const CLOUDINARY_CLOUD_NAME = "dlslhejke";
 const CLOUDINARY_UPLOAD_PRESET = "unsigned_upload";
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
+interface CloudinaryUploadResponse {
+  secure_url?: string;
+  error?: {
+    message?: string;
+  };
+}
+
 const getFileName = (imageUri: string) =>
   imageUri.split("/").pop()?.split("?")[0] || `product-${Date.now()}.jpg`;
 
@@ -44,21 +51,21 @@ export const uploadImageToCloudinary = async (imageUri: string) => {
 
     const response = await fetch(CLOUDINARY_UPLOAD_URL, {
       method: "POST",
-      body: formData,
+      body: formData as unknown as RequestInit["body"],
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as CloudinaryUploadResponse;
 
     if (!response.ok || !data.secure_url) {
       console.error("[Cloudinary] Upload failed", {
         status: response.status,
         data,
       });
-      throw new Error(data?.error?.message || "Cloudinary upload failed.");
+      throw new Error(data.error?.message || "Cloudinary upload failed.");
     }
 
     console.log("[Cloudinary] Uploaded image URL", data.secure_url);
-    return data.secure_url as string;
+    return data.secure_url;
   } catch (error) {
     console.error("[Cloudinary] uploadImageToCloudinary error", error);
     throw error;

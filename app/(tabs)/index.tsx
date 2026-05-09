@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  ImageBackground,
   Platform,
   Pressable,
   SafeAreaView,
@@ -21,6 +20,7 @@ import CategoryChip from "../../components/CategoryChip";
 import DesktopSiteFooter from "../../components/DesktopSiteFooter";
 import DealCard from "../../components/DealCard";
 import ProductCard from "../../components/ProductCard";
+import SmartImage from "../../components/SmartImage";
 import { categoryList, homeBanners, mockProducts } from "../../constants/mockData";
 import { bannerGradients, colors, radius, spacing } from "../../constants/theme";
 import { db } from "../../firebaseConfig";
@@ -1145,8 +1145,28 @@ export default function HomeTabScreen() {
                   overflow: "hidden",
                 }}
               >
-                <ImageBackground source={{ uri: banner.image }} style={{ flex: 1 }}>
-                  <LinearGradient colors={bannerGradients[index]} style={{ flex: 1, padding: spacing.xl, justifyContent: "flex-end" }}>
+                <View style={{ flex: 1 }}>
+                  <SmartImage
+                    uri={banner.image}
+                    width="100%"
+                    height="100%"
+                    borderRadius={0}
+                    resizeMode="cover"
+                    fallbackEmoji="🛒"
+                    fallbackColor={colors.primaryLight}
+                  />
+                  <LinearGradient
+                    colors={bannerGradients[index]}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      left: 0,
+                      padding: spacing.xl,
+                      justifyContent: "flex-end",
+                    }}
+                  >
                     <Text style={{ color: colors.white, fontSize: 24, fontWeight: "900" }}>
                       {banner.title}
                     </Text>
@@ -1168,7 +1188,7 @@ export default function HomeTabScreen() {
                       </Text>
                     </View>
                   </LinearGradient>
-                </ImageBackground>
+                </View>
               </Pressable>
             ))}
           </ScrollView>

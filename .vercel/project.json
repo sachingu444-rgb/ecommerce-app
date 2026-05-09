@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_G4Y76raS22ZaS2pNFr2foOiBZROP",
+  "orgId": "team_UhH5w9iY5WmiQgMaJW3nPsVP",
+  "projectName": "ecommerce-app",
+  "settings": {
+    "createdAt": 1775287925855,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": "npm install",
+    "buildCommand": "npx expo export",
+    "outputDirectory": "dist",
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

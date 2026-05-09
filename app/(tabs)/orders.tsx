@@ -6,7 +6,7 @@ import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 import EmptyState from "../../components/EmptyState";
 import OrderCard from "../../components/OrderCard";
 import { colors, orderStatusColors, radius, spacing } from "../../constants/theme";
-import { useAuth } from "../../hooks/useAuth";
+import { useRequireAuth } from "../../hooks/useRequireAuth";
 import { fetchBuyerOrders } from "../../lib/firebaseApi";
 import { Order, OrderStatus } from "../../types";
 
@@ -20,7 +20,7 @@ const filters: Array<{ label: string; value: "all" | OrderStatus }> = [
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useRequireAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<"all" | OrderStatus>("all");
 

@@ -13,7 +13,7 @@ import DesktopSiteFooter from "../../components/DesktopSiteFooter";
 import EmptyState from "../../components/EmptyState";
 import FormField from "../../components/FormField";
 import { colors, radius, spacing } from "../../constants/theme";
-import { useAuth } from "../../hooks/useAuth";
+import { useRequireAuth } from "../../hooks/useRequireAuth";
 import { fetchCoupons } from "../../lib/firebaseApi";
 import { showToast } from "../../lib/toast";
 import { formatCurrency } from "../../lib/utils";
@@ -21,7 +21,7 @@ import { useCartStore } from "../../store/cartStore";
 
 export default function CartScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useRequireAuth();
   const items = useCartStore((state) => state.items);
   const updateQty = useCartStore((state) => state.updateQty);
   const removeItem = useCartStore((state) => state.removeItem);

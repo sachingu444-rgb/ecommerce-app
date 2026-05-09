@@ -23,6 +23,8 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  authReady: boolean;
+  userRole: UserProfile["role"] | null;
   isSeller: boolean;
   isBuyer: boolean;
   isAdmin: boolean;
@@ -94,7 +96,7 @@ const buildResolvedProfile = (
 export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
   const refreshProfile = async () => {
     if (!auth.currentUser) {
@@ -146,15 +148,21 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
+    const timeout = setTimeout(() => {
+      setUser(null);
+      setProfile(null);
+      setAuthReady(true);
+    }, 2000);
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser: User | null) => {
+      clearTimeout(timeout);
       setUser(currentUser);
+      setAuthReady(true);
 
       if (!currentUser) {
         unsubscribeProfile?.();
         unsubscribeProfile = null;
         setProfile(null);
-        setLoading(false);
         return;
       }
 
@@ -201,20 +209,18 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
             } else {
               setProfile(fallbackProfile);
             }
-            setLoading(false);
           },
           () => {
             setProfile(fallbackProfile);
-            setLoading(false);
           }
         );
       } catch {
         setProfile(fallbackProfile);
-        setLoading(false);
       }
     });
 
     return () => {
+      clearTimeout(timeout);
       unsubscribeProfile?.();
       unsubscribeAuth();
     };
@@ -224,13 +230,15 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     () => ({
       user,
       profile,
-      loading,
+      loading: !authReady,
+      authReady,
+      userRole: profile?.role ?? null,
       isSeller: profile?.role === "seller",
       isBuyer: profile?.role === "buyer",
       isAdmin: profile?.role === "admin",
       refreshProfile,
     }),
-    [loading, profile, user]
+    [authReady, profile, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

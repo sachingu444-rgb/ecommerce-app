@@ -3,7 +3,7 @@ import { type StateCreator } from "zustand/vanilla";
 
 import { CartItem } from "../types";
 
-interface CartStoreState {
+export interface CartStoreState {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (productId: string) => void;

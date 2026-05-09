@@ -5,11 +5,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  DocumentData,
+  FirestoreError,
   getDoc,
   getDocs,
   limit,
   onSnapshot,
   orderBy,
+  QuerySnapshot,
   query,
   runTransaction,
   serverTimestamp,
@@ -105,14 +108,14 @@ const requireAdminSession = () => {
 
 const toWalletTopUpRequest = (value: { id: string; data: () => unknown }) =>
   ({
-    id: value.id,
     ...(value.data() as WalletTopUpRequest),
+    id: value.id,
   }) as WalletTopUpRequest;
 
 const toWalletTransaction = (value: { id: string; data: () => unknown }) =>
   ({
-    id: value.id,
     ...(value.data() as WalletTransaction),
+    id: value.id,
   }) as WalletTransaction;
 
 export const fetchProducts = async () => {
@@ -503,10 +506,10 @@ export const subscribeToWalletTopUpRequests = (
 ) =>
   onSnapshot(
     walletTopUpCollection,
-    (snapshot: any) => {
+    (snapshot: QuerySnapshot<DocumentData>) => {
       onRequests(sortWalletTopUpsByNewest(snapshot.docs.map(toWalletTopUpRequest)));
     },
-    (error: any) => {
+    (error: FirestoreError) => {
       console.error("[wallet-top-ups] admin subscription failed", error);
       onRequests([]);
     }
@@ -518,10 +521,10 @@ export const subscribeToUserWalletTopUpRequests = (
 ) =>
   onSnapshot(
     query(walletTopUpCollection, where("userId", "==", uid)),
-    (snapshot: any) => {
+    (snapshot: QuerySnapshot<DocumentData>) => {
       onRequests(sortWalletTopUpsByNewest(snapshot.docs.map(toWalletTopUpRequest)));
     },
-    (error: any) => {
+    (error: FirestoreError) => {
       console.error("[wallet-top-ups] user subscription failed", error);
       onRequests([]);
     }
@@ -731,14 +734,14 @@ export const subscribeToUsers = (
 ) =>
   onSnapshot(
     userCollection,
-    (snapshot: any) => {
+    (snapshot: QuerySnapshot<DocumentData>) => {
       onUsers(
         sortByNewest(
           snapshot.docs.map((item) => item.data() as UserProfile)
         )
       );
     },
-    (error: any) => {
+    (error: FirestoreError) => {
       console.error("[users] subscription failed", error);
       onUsers([]);
     }

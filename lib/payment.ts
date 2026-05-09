@@ -1,6 +1,6 @@
-import { httpsCallable } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-import { functions } from "../firebaseConfig";
+import app from "../firebaseConfig";
 
 const FALLBACK_STRIPE_PUBLISHABLE_KEY = "pk_test_TYooMQauvdEDq54NiTphI7jx";
 export const merchantUpiId = "9120689422@ybl";
@@ -21,6 +21,7 @@ export const createPaymentSheetParams = async (
   amount: number,
   email: string
 ) => {
+  const functions = getFunctions(app);
   const callable = httpsCallable(functions, "createPaymentSheet");
 
   const result = await callable({

@@ -23,6 +23,7 @@ import FormField from "../../components/FormField";
 import { colors, radius, shadows, spacing } from "../../constants/theme";
 import { auth } from "../../firebaseConfig";
 import { useAuth } from "../../hooks/useAuth";
+import { useRequireAuth } from "../../hooks/useRequireAuth";
 import { useNotifications } from "../../hooks/useNotifications";
 import {
   fetchBuyerOrders,
@@ -210,6 +211,7 @@ const SectionHeader = ({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  useRequireAuth();
   const { user, profile } = useAuth();
   const { unreadCount: unreadNotificationCount } = useNotifications(user?.uid);
   const { width } = useWindowDimensions();

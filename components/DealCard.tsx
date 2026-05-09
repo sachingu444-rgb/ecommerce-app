@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { colors, radius, shadows, spacing } from "../constants/theme";
 import { formatCurrency } from "../lib/utils";
 import { Product } from "../types";
-import AppImage from "./AppImage";
+import SmartImage from "./SmartImage";
 
 interface DealCardProps {
   product: Product;
@@ -24,10 +24,14 @@ const DealCard = ({ product, onPress }: DealCardProps) => {
       }}
     >
       <View style={{ position: "relative" }}>
-        <AppImage
+        <SmartImage
           uri={product.images?.[0]}
+          width="100%"
+          height={120}
+          borderRadius={0}
           resizeMode="contain"
-          containerStyle={{ width: "100%", height: 120, borderRadius: 0, backgroundColor: colors.bg }}
+          fallbackEmoji="🛍"
+          fallbackColor={colors.bg}
         />
         <View
           style={{
@@ -69,4 +73,3 @@ const DealCard = ({ product, onPress }: DealCardProps) => {
 };
 
 export default DealCard;
-

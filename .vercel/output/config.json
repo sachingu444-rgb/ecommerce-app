@@ -1,0 +1,168 @@
+{
+  "version": 3,
+  "routes": [
+    {
+      "src": "^/(?:(.+)/)?index(?:\\.html)?/?$",
+      "headers": {
+        "Location": "/$1"
+      },
+      "status": 308
+    },
+    {
+      "src": "^/(.*)\\.html/?$",
+      "headers": {
+        "Location": "/$1"
+      },
+      "status": 308
+    },
+    {
+      "handle": "error"
+    },
+    {
+      "status": 404,
+      "src": "^(?!/api).*$",
+      "dest": "/404"
+    }
+  ],
+  "overrides": {
+    "_sitemap.html": {
+      "path": "_sitemap"
+    },
+    "(auth)\\forgot-password.html": {
+      "path": "(auth)\\forgot-password"
+    },
+    "(auth)\\login.html": {
+      "path": "(auth)\\login"
+    },
+    "(auth)\\register.html": {
+      "path": "(auth)\\register"
+    },
+    "(tabs)\\cart.html": {
+      "path": "(tabs)\\cart"
+    },
+    "(tabs)\\categories.html": {
+      "path": "(tabs)\\categories"
+    },
+    "(tabs)\\index.html": {
+      "path": "(tabs)\\index"
+    },
+    "(tabs)\\orders.html": {
+      "path": "(tabs)\\orders"
+    },
+    "(tabs)\\profile.html": {
+      "path": "(tabs)\\profile"
+    },
+    "+not-found.html": {
+      "path": "+not-found"
+    },
+    "about.html": {
+      "path": "about"
+    },
+    "addresses.html": {
+      "path": "addresses"
+    },
+    "admin\\dashboard.html": {
+      "path": "admin\\dashboard"
+    },
+    "cart.html": {
+      "path": "cart"
+    },
+    "categories.html": {
+      "path": "categories"
+    },
+    "category\\[slug].html": {
+      "path": "category\\[slug]"
+    },
+    "checkout.html": {
+      "path": "checkout"
+    },
+    "deals.html": {
+      "path": "deals"
+    },
+    "forgot-password.html": {
+      "path": "forgot-password"
+    },
+    "index.html": {
+      "path": "index"
+    },
+    "login.html": {
+      "path": "login"
+    },
+    "notifications.html": {
+      "path": "notifications"
+    },
+    "order-confirmation.html": {
+      "path": "order-confirmation"
+    },
+    "order\\[id].html": {
+      "path": "order\\[id]"
+    },
+    "orders.html": {
+      "path": "orders"
+    },
+    "permissions.html": {
+      "path": "permissions"
+    },
+    "product\\[id].html": {
+      "path": "product\\[id]"
+    },
+    "profile.html": {
+      "path": "profile"
+    },
+    "register.html": {
+      "path": "register"
+    },
+    "resume.html": {
+      "path": "resume"
+    },
+    "search.html": {
+      "path": "search"
+    },
+    "seller\\add-product.html": {
+      "path": "seller\\add-product"
+    },
+    "seller\\advertising.html": {
+      "path": "seller\\advertising"
+    },
+    "seller\\dashboard.html": {
+      "path": "seller\\dashboard"
+    },
+    "seller\\edit-product.html": {
+      "path": "seller\\edit-product"
+    },
+    "seller\\growth.html": {
+      "path": "seller\\growth"
+    },
+    "seller\\inventory.html": {
+      "path": "seller\\inventory"
+    },
+    "seller\\orders.html": {
+      "path": "seller\\orders"
+    },
+    "seller\\payments.html": {
+      "path": "seller\\payments"
+    },
+    "seller\\products.html": {
+      "path": "seller\\products"
+    },
+    "seller\\profile.html": {
+      "path": "seller\\profile"
+    },
+    "seller\\register.html": {
+      "path": "seller\\register"
+    },
+    "seller\\reports.html": {
+      "path": "seller\\reports"
+    },
+    "seller\\services.html": {
+      "path": "seller\\services"
+    },
+    "support.html": {
+      "path": "support"
+    },
+    "wishlist.html": {
+      "path": "wishlist"
+    }
+  },
+  "crons": []
+}

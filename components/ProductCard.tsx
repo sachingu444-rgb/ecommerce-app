@@ -4,7 +4,7 @@ import { Dimensions, Pressable, Text, View } from "react-native";
 import { colors, radius, shadows, spacing } from "../constants/theme";
 import { formatCurrency } from "../lib/utils";
 import { Product } from "../types";
-import AppImage from "./AppImage";
+import SmartImage from "./SmartImage";
 import StarRating from "./StarRating";
 
 interface ProductCardProps {
@@ -40,15 +40,14 @@ const ProductCard = ({
       }}
     >
       <View style={{ position: "relative" }}>
-        <AppImage
+        <SmartImage
           uri={product.images?.[0]}
+          width="100%"
+          height={imageHeight}
+          borderRadius={radius.md}
           resizeMode="contain"
-          containerStyle={{
-            width: "100%",
-            height: imageHeight,
-            borderRadius: radius.md,
-            backgroundColor: colors.bg,
-          }}
+          fallbackEmoji="🛍"
+          fallbackColor={colors.bg}
         />
         {product.discount > 0 ? (
           <View
@@ -145,4 +144,3 @@ const ProductCard = ({
 };
 
 export default ProductCard;
-

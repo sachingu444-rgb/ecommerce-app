@@ -8,10 +8,10 @@ import { useAuth } from "../../hooks/useAuth";
 export default function AdminLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const { loading, user, profile } = useAuth();
+  const { authReady, user, profile } = useAuth();
 
   useEffect(() => {
-    if (loading) {
+    if (!authReady) {
       return;
     }
 
@@ -20,12 +20,16 @@ export default function AdminLayout() {
       return;
     }
 
+    if (user && !profile) {
+      return;
+    }
+
     if (profile?.role !== "admin") {
       router.replace("/");
     }
-  }, [loading, pathname, profile?.role, router, user]);
+  }, [authReady, pathname, profile, router, user]);
 
-  if (loading) {
+  if (!authReady || (user && !profile)) {
     return <FullScreenLoader label="Opening admin command center..." />;
   }
 
