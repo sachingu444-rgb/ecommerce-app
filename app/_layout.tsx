@@ -1,12 +1,14 @@
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { colors } from "../constants/theme";
+import { auth } from "../firebaseConfig";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { useCartSync } from "../hooks/useCartSync";
 import { usePushNotifications } from "../hooks/usePushNotifications";
@@ -20,28 +22,19 @@ const SplashScreen = () => (
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "#FFFFFF",
-      padding: 32,
     }}
   >
-    <Text style={{ color: "#0066CC", fontSize: 24, fontWeight: "800" }}>
-      ShopApp
+    <Text style={{ fontSize: 24, fontWeight: "800", color: "#0066CC" }}>
+      SachinIndia
     </Text>
-    <ActivityIndicator
-      size="large"
-      color="#0066CC"
-      style={{ marginTop: 20, marginBottom: 14 }}
-    />
-    <Text style={{ color: "#0D1B2A", fontSize: 14, fontWeight: "800" }}>
-      SACHINDIA
-    </Text>
-    <Text style={{ color: "#6B7280", fontSize: 13, marginTop: 6 }}>
-      Loading your store...
-    </Text>
+    <ActivityIndicator color="#0066CC" style={{ marginTop: 16 }} />
   </View>
 );
 
 const RootNavigator = () => {
-  const { authReady, user, isSeller, isBuyer, isAdmin, userRole } = useAuth();
+  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const { isSeller, isBuyer, isAdmin, userRole } = useAuth();
   const router = useRouter();
   const segments = useSegments();
   const pathname = usePathname();
@@ -50,13 +43,30 @@ const RootNavigator = () => {
   usePushNotifications(user?.uid);
 
   useEffect(() => {
-    if (authReady && typeof globalThis !== "undefined") {
+    const hideWebSplash = () => {
       const webGlobal = globalThis as typeof globalThis & {
         __hideSplash?: () => void;
       };
       webGlobal.__hideSplash?.();
-    }
-  }, [authReady]);
+    };
+
+    const timer = setTimeout(() => {
+      setAuthReady(true);
+      hideWebSplash();
+    }, 1500);
+
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      clearTimeout(timer);
+      setUser(nextUser);
+      setAuthReady(true);
+      hideWebSplash();
+    });
+
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
+  }, []);
 
   useEffect(() => {
     if (!authReady) {
