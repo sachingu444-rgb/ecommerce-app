@@ -4,7 +4,7 @@ import { colors, spacing } from "../constants/theme";
 
 const startupLogo = require("../assets/branding/sachindia-startup-logo.png");
 
-const FullScreenLoader = ({ label = "Preparing SACHINDIA..." }: { label?: string }) => {
+const FullScreenLoader = ({ label = "SachinIndia" }: { label?: string }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
       <View
@@ -36,15 +36,6 @@ const FullScreenLoader = ({ label = "Preparing SACHINDIA..." }: { label?: string
               }}
             >
               {label}
-            </Text>
-            <Text
-              style={{
-                color: colors.muted,
-                fontSize: 13,
-                textAlign: "center",
-              }}
-            >
-              Secure shopping, quick checkout, and daily deals are loading.
             </Text>
           </View>
         </View>
