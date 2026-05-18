@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   SafeAreaView,
   Text,
@@ -32,6 +33,26 @@ export default function AddProductScreen() {
       "ShopApp Seller",
     [currentUser?.displayName, profile?.name, profile?.storeName]
   );
+
+  if (authLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: spacing.xl,
+          }}
+        >
+          <Text style={{ fontSize: 24, fontWeight: "900", color: colors.primary }}>
+            SachinIndia
+          </Text>
+          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!currentUser) {
     return (
@@ -101,11 +122,6 @@ export default function AddProductScreen() {
           submitLabel="Publish Product"
           onSubmit={async (values) => {
             if (authLoading) {
-              showToast(
-                "info",
-                "Checking your account",
-                "Please wait a moment and try again."
-              );
               return;
             }
 
