@@ -208,3 +208,69 @@ export interface AppNotification {
   updatedAt?: unknown;
   read: boolean;
 }
+
+export interface BuyerHeroItem {
+  id: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  offer: string;
+  image: string;
+  category: string;
+  accent: string;
+  durationHours?: number;
+}
+
+export interface BuyerPromoGridItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  image: string;
+  category: string;
+  accent: string;
+  icon: string;
+  tag?: string;
+}
+
+export interface BuyerVisualCategoryItem {
+  id: string;
+  label: string;
+  image: string;
+  category: string;
+}
+
+export interface BuyerLovedOneItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  image: string;
+  category: string;
+}
+
+export interface BuyerHomeContent {
+  heroes: BuyerHeroItem[];
+  promoGrid: BuyerPromoGridItem[];
+  visualCategories: BuyerVisualCategoryItem[];
+  lovedOnes: BuyerLovedOneItem[];
+  lovedOnesTitle: string;
+  dealsTitle: string;
+  dealsActionLabel: string;
+  featuredTitle: string;
+  featuredActionLabel: string;
+}
+
+export interface BuyerPageLabels {
+  homeTitle: string;
+  categoriesTitle: string;
+  categoriesSubtitle: string;
+  productsTitle: string;
+  productsSubtitle: string;
+  dealsTitle: string;
+  dealsSubtitle: string;
+}
+
+export interface BuyerPageContent {
+  home: BuyerHomeContent;
+  pages: BuyerPageLabels;
+  updatedAt?: unknown;
+}

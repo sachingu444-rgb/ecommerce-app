@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 
 import CategoryChip from "../components/CategoryChip";
@@ -10,7 +9,7 @@ import ProductCard from "../components/ProductCard";
 import { categoryList } from "../constants/mockData";
 import { colors, radius, spacing } from "../constants/theme";
 import { useAuth } from "../hooks/useAuth";
-import { fetchProducts } from "../lib/firebaseApi";
+import { subscribeToActiveProducts } from "../lib/firebaseApi";
 import { showToast } from "../lib/toast";
 import { useCartStore } from "../store/cartStore";
 import { Product } from "../types";
@@ -24,11 +23,10 @@ export default function SearchScreen() {
   const [query, setQuery] = useState(params.q || "");
   const [category, setCategory] = useState(params.category || "All");
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchProducts().then(setProducts);
-    }, [])
-  );
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveProducts(setProducts);
+    return () => unsubscribe();
+  }, []);
 
   const results = useMemo(() => {
     return products.filter((product) => {

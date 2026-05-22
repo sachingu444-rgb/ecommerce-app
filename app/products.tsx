@@ -1,17 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
+import { defaultBuyerPageContent } from "../constants/buyerPageContent";
 import { colors, radius, spacing } from "../constants/theme";
 import { useAuth } from "../hooks/useAuth";
-import { fetchProducts } from "../lib/firebaseApi";
+import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../lib/firebaseApi";
 import { showToast } from "../lib/toast";
 import { useCartStore } from "../store/cartStore";
-import { Product } from "../types";
+import { BuyerPageContent, Product } from "../types";
 
 export default function ProductsScreen() {
   const router = useRouter();
@@ -19,12 +19,17 @@ export default function ProductsScreen() {
   const addItem = useCartStore((state) => state.addItem);
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
+  const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchProducts().then(setProducts);
-    }, [])
-  );
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveProducts(setProducts);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToBuyerPageContent(setPageContent);
+    return () => unsubscribe();
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -67,10 +72,10 @@ export default function ProductsScreen() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
-              🛍 All Products
+              {pageContent.pages.productsTitle}
             </Text>
             <Text style={{ color: colors.muted, marginTop: 4 }}>
-              Browse every active product in the store.
+              {pageContent.pages.productsSubtitle}
             </Text>
           </View>
         </View>

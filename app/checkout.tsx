@@ -331,10 +331,28 @@ export default function CheckoutScreen() {
         `Wallet charged ${formatCurrency(total)}. Remaining balance: ${formatCurrency(walletPayment.balanceAfter)}.`
       );
     } catch (error) {
-      const message =
-        error instanceof Error && error.message === "wallet-insufficient-balance"
-          ? "Your wallet balance changed. Please add funds and try again."
-          : "Please try again in a moment.";
+      console.error("[checkout] Wallet payment failed", error);
+
+      const message = (() => {
+        if (!(error instanceof Error)) {
+          return "Please try again in a moment.";
+        }
+
+        if (error.message === "wallet-insufficient-balance") {
+          return "Your wallet balance changed. Please add funds and try again.";
+        }
+
+        if (error.message === "wallet-user-mismatch") {
+          return "Please sign in again before paying from wallet.";
+        }
+
+        if (error.message === "wallet-permission-denied") {
+          return "Wallet permissions are not live yet. Deploy the updated Firestore rules and try again.";
+        }
+
+        return "Please try again in a moment.";
+      })();
+
       showToast("error", "Wallet payment failed", message);
     } finally {
       setSubmitting(false);

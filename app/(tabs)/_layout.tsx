@@ -1,13 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useEffect, useState } from "react";
 import { Dimensions, Platform } from "react-native";
 
+import { defaultBuyerPageContent } from "../../constants/buyerPageContent";
 import { colors } from "../../constants/theme";
+import { subscribeToBuyerPageContent } from "../../lib/firebaseApi";
 import { useCartStore } from "../../store/cartStore";
+import { BuyerPageContent } from "../../types";
 
 export default function BuyerTabsLayout() {
   const totalItems = useCartStore((state) => state.totalItems());
   const isDesktopWeb = Platform.OS === "web" && Dimensions.get("window").width >= 1080;
+  const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToBuyerPageContent(setPageContent);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <Tabs
@@ -32,7 +42,7 @@ export default function BuyerTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: pageContent.pages.homeTitle,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -41,7 +51,7 @@ export default function BuyerTabsLayout() {
       <Tabs.Screen
         name="categories"
         options={{
-          title: "Categories",
+          title: pageContent.pages.categoriesTitle,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="grid-outline" size={size} color={color} />
           ),

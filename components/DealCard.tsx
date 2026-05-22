@@ -8,16 +8,35 @@ import SmartImage from "./SmartImage";
 interface DealCardProps {
   product: Product;
   onPress?: () => void;
+  palette?: {
+    card: string;
+    text: string;
+    muted: string;
+    border: string;
+    imageFallback: string;
+    primary: string;
+  };
 }
 
-const DealCard = ({ product, onPress }: DealCardProps) => {
+const DealCard = ({ product, onPress, palette }: DealCardProps) => {
+  const cardPalette = palette || {
+    card: colors.card,
+    text: colors.text,
+    muted: colors.muted,
+    border: colors.border,
+    imageFallback: colors.bg,
+    primary: colors.primary,
+  };
+
   return (
     <Pressable
       onPress={onPress}
       style={{
         width: 150,
-        backgroundColor: colors.card,
+        backgroundColor: cardPalette.card,
         borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: cardPalette.border,
         marginRight: spacing.md,
         overflow: "hidden",
         ...shadows.card,
@@ -30,8 +49,8 @@ const DealCard = ({ product, onPress }: DealCardProps) => {
           height={120}
           borderRadius={0}
           resizeMode="contain"
-          fallbackEmoji="🛍"
-          fallbackColor={colors.bg}
+          fallbackEmoji="S"
+          fallbackColor={cardPalette.imageFallback}
         />
         <View
           style={{
@@ -51,15 +70,15 @@ const DealCard = ({ product, onPress }: DealCardProps) => {
       </View>
 
       <View style={{ padding: spacing.sm }}>
-        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
+        <Text numberOfLines={1} style={{ color: cardPalette.text, fontWeight: "800", fontSize: 13 }}>
           {product.name}
         </Text>
-        <Text style={{ color: colors.primary, fontWeight: "900", fontSize: 15, marginTop: spacing.sm }}>
+        <Text style={{ color: cardPalette.primary, fontWeight: "900", fontSize: 15, marginTop: spacing.sm }}>
           {formatCurrency(product.price)}
         </Text>
         <Text
           style={{
-            color: colors.muted,
+            color: cardPalette.muted,
             fontSize: 11,
             textDecorationLine: "line-through",
             marginTop: 2,

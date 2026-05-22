@@ -1,24 +1,29 @@
-import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import { categoryList } from "../../constants/mockData";
 import DesktopSiteFooter from "../../components/DesktopSiteFooter";
+import { defaultBuyerPageContent } from "../../constants/buyerPageContent";
 import { colors, radius, spacing } from "../../constants/theme";
-import { fetchProducts } from "../../lib/firebaseApi";
-import { Product } from "../../types";
+import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../lib/firebaseApi";
+import { BuyerPageContent, Product } from "../../types";
 
 export default function CategoriesScreen() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchProducts().then(setProducts);
-    }, [])
-  );
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveProducts(setProducts);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToBuyerPageContent(setPageContent);
+    return () => unsubscribe();
+  }, []);
 
   const categories = useMemo(
     () =>
@@ -32,9 +37,11 @@ export default function CategoriesScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
-        <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>Categories</Text>
+        <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
+          {pageContent.pages.categoriesTitle}
+        </Text>
         <Text style={{ color: colors.muted, marginTop: spacing.sm, marginBottom: spacing.xl }}>
-          Explore every aisle across the marketplace.
+          {pageContent.pages.categoriesSubtitle}
         </Text>
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>

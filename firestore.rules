@@ -1,74 +1,175 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
 
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function currentUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    function isSeller() {
-      return isSignedIn() && getUserRole() == 'seller';
+    function currentUserExists() {
+      return signedIn() && exists(currentUserPath());
+    }
+
+    function currentUserEmail() {
+      return signedIn() && request.auth.token.email is string
+        ? request.auth.token.email.trim().lower()
+        : "";
+    }
+
+    function currentUserRole() {
+      return currentUserExists() ? get(currentUserPath()).data.role : null;
     }
 
     function isAdmin() {
-      return isSignedIn() && getUserRole() == 'admin';
+      return signedIn() && (
+        currentUserEmail() == "sachingu444@gmail.com" ||
+        currentUserRole() == "admin"
+      );
+    }
+
+    function isSeller() {
+      return signedIn() && currentUserRole() == "seller";
+    }
+
+    function isSelfOrAdmin(uid) {
+      return isOwner(uid) || isAdmin();
+    }
+
+    function isSafeProfileSelfUpdate(uid) {
+      return isOwner(uid) &&
+        request.resource.data.uid == uid &&
+        !request.resource.data
+          .diff(resource.data)
+          .changedKeys()
+          .hasAny(["role", "storeApproved", "walletBalance", "walletUpdatedAt"]);
+    }
+
+    function isWalletSelfUpdate() {
+      return request.resource.data
+          .diff(resource.data)
+          .changedKeys()
+          .hasOnly(["walletBalance", "walletUpdatedAt", "updatedAt"]) &&
+        request.resource.data.walletBalance is number &&
+        resource.data.walletBalance is number &&
+        request.resource.data.walletBalance >= 0 &&
+        request.resource.data.walletBalance <= resource.data.walletBalance;
     }
 
     match /products/{productId} {
       allow read: if resource.data.isActive == true;
-      allow read: if isSignedIn() &&
+      allow read: if signedIn() &&
         (resource.data.sellerId == request.auth.uid || isAdmin());
-      allow create: if isSeller() &&
-        request.resource.data.sellerId == request.auth.uid;
-      allow update: if isSeller() &&
-        resource.data.sellerId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin() ||
-        (isSeller() && resource.data.sellerId == request.auth.uid);
-    }
-
-    match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow read: if isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow update: if isAdmin();
-    }
-
-    match /orders/{orderId} {
-      allow read: if isSignedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        isAdmin()
+      allow create: if signedIn() && (
+        isAdmin() ||
+        (isSeller() && request.resource.data.sellerId == request.auth.uid)
       );
-      allow create: if isSignedIn() &&
-        request.resource.data.buyerId == request.auth.uid;
-      allow update: if isAdmin();
-      allow update: if isSeller();
-    }
-
-    match /cart/{userId} {
-      allow read, write: if isOwner(userId);
-    }
-
-    match /wishlist/{userId} {
-      allow read, write: if isOwner(userId);
+      allow update, delete: if signedIn() && (
+        isAdmin() ||
+        (isSeller() && resource.data.sellerId == request.auth.uid)
+      );
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn() &&
-        request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
-        resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin() || (
+        signedIn() && resource.data.userId == request.auth.uid
+      );
+    }
+
+    match /orders/{orderId} {
+      allow create: if signedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow read: if signedIn() && (
+        isAdmin() || isSeller() || resource.data.buyerId == request.auth.uid
+      );
+      allow update: if signedIn() && (
+        isAdmin() ||
+        isSeller() ||
+        (
+          resource.data.buyerId == request.auth.uid &&
+          request.resource.data.buyerId == resource.data.buyerId
+        )
+      );
+    }
+
+    match /wishlist/{uid} {
+      allow read, write: if isSelfOrAdmin(uid);
+    }
+
+    match /cart/{uid} {
+      allow read, write: if isSelfOrAdmin(uid);
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /walletTopUpUtrs/{utr} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /walletTopUps/{requestId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == "pending";
+      allow read: if signedIn() && (
+        isAdmin() || resource.data.userId == request.auth.uid
+      );
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /walletTransactions/{transactionId} {
+      allow create: if signedIn() && (
+        isAdmin() ||
+        (
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.type == "debit" &&
+          request.resource.data.source == "wallet_order" &&
+          request.resource.data.status == "completed"
+        )
+      );
+      allow read: if signedIn() && (
+        isAdmin() || resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if isSelfOrAdmin(uid);
+      allow create: if isOwner(uid) &&
+        request.resource.data.uid == uid &&
+        (
+          request.resource.data.role == "buyer" ||
+          request.resource.data.role == "seller" ||
+          (
+            request.resource.data.role == "admin" &&
+            currentUserEmail() == "sachingu444@gmail.com"
+          )
+        );
+      allow update: if isAdmin() || isSafeProfileSelfUpdate(uid) || (
+        isOwner(uid) && isWalletSelfUpdate()
+      );
       allow delete: if isAdmin();
+
+      match /notifications/{notificationId} {
+        allow read, update: if isSelfOrAdmin(uid);
+        allow create, delete: if isAdmin() || isOwner(uid);
+      }
+
+      match /pushTokens/{tokenId} {
+        allow read, write: if isSelfOrAdmin(uid);
+      }
     }
 
     match /storefronts/{docId} {
@@ -81,8 +182,13 @@ service cloud.firestore {
       }
     }
 
-    match /notifications/{userId} {
-      allow read, write: if isOwner(userId);
+    match /siteContent/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

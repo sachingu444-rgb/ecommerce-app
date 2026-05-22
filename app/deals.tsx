@@ -1,29 +1,37 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
+import { defaultBuyerPageContent } from "../constants/buyerPageContent";
 import { colors, spacing } from "../constants/theme";
 import { useAuth } from "../hooks/useAuth";
-import { fetchDealProducts } from "../lib/firebaseApi";
+import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../lib/firebaseApi";
 import { showToast } from "../lib/toast";
 import { useCartStore } from "../store/cartStore";
-import { Product } from "../types";
+import { BuyerPageContent, Product } from "../types";
 
 export default function DealsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [products, setProducts] = useState<Product[]>([]);
+  const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchDealProducts().then(setProducts);
-    }, [])
-  );
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveProducts((liveProducts) => {
+      setProducts(liveProducts.filter((product) => product.isDeal).slice(0, 10));
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToBuyerPageContent(setPageContent);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -43,9 +51,11 @@ export default function DealsScreen() {
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
           <View>
-            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>Deal Zone</Text>
+            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
+              {pageContent.pages.dealsTitle}
+            </Text>
             <Text style={{ color: colors.muted, marginTop: 4 }}>
-              Hand-picked offers you can grab today.
+              {pageContent.pages.dealsSubtitle}
             </Text>
           </View>
         </View>

@@ -16,6 +16,7 @@ functions/node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+firebase-debug.log*
 
 # Android / Gradle local outputs
 android/.gradle

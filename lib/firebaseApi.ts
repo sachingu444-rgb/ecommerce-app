@@ -27,11 +27,16 @@ import {
   uploadBytesResumable,
 } from "firebase/storage";
 
-import { mockCoupons, mockProducts, mockReviews } from "../constants/mockData";
-import { auth, db, storage } from "../firebaseConfig";
+import { mockCoupons, mockReviews } from "../constants/mockData";
+import {
+  defaultBuyerPageContent,
+  normalizeBuyerPageContent,
+} from "../constants/buyerPageContent";
+import { auth, db, storage, waitForAuthReady } from "../firebaseConfig";
 import { isPrivilegedAdminEmail, resolveRoleForEmail } from "./admin";
 import {
   AppNotification,
+  BuyerPageContent,
   CartItem,
   Coupon,
   Order,
@@ -52,6 +57,7 @@ const userCollection = collection(db, "users");
 const walletTopUpCollection = collection(db, "walletTopUps");
 const walletTopUpUtrCollection = collection(db, "walletTopUpUtrs");
 const walletTransactionCollection = collection(db, "walletTransactions");
+const buyerPageContentRef = doc(db, "siteContent", "buyerPages");
 
 const notificationCollection = (uid: string) =>
   collection(db, "users", uid, "notifications");
@@ -101,8 +107,8 @@ const stripUndefinedDeep = <T>(value: T): T => {
 };
 
 const requireAdminSession = () => {
-  if (!isPrivilegedAdminEmail(auth.currentUser?.email)) {
-    throw new Error("admin-required");
+  if (!auth.currentUser) {
+    throw new Error("auth-required");
   }
 };
 
@@ -120,16 +126,56 @@ const toWalletTransaction = (value: { id: string; data: () => unknown }) =>
 
 export const fetchProducts = async () => {
   try {
-    const snapshot = await getDocs(query(productCollection, orderBy("createdAt", "desc")));
+    const snapshot = await getDocs(
+      query(productCollection, where("isActive", "==", true))
+    );
     if (snapshot.empty) {
-      return mockProducts;
+      return [];
     }
 
-    return snapshot.docs
-      .map((item) => safeProduct({ id: item.id, ...item.data() }))
-      .filter((product) => product.isActive);
+    return sortByNewest(
+      snapshot.docs
+        .map((item) => safeProduct({ id: item.id, ...item.data() }))
+        .filter((product) => product.isActive)
+    );
   } catch {
-    return mockProducts;
+    return [];
+  }
+};
+
+const isPermissionDeniedError = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  (error as { code?: unknown }).code === "permission-denied";
+
+export const subscribeToActiveProducts = (
+  onProducts: (products: Product[]) => void
+) => {
+  try {
+    return onSnapshot(
+      query(productCollection, where("isActive", "==", true)),
+      (snapshot) => {
+        if (snapshot.empty) {
+          onProducts([]);
+          return;
+        }
+
+        onProducts(
+          sortByNewest(
+            snapshot.docs
+              .map((item) => safeProduct({ id: item.id, ...item.data() }))
+              .filter((product) => product.isActive)
+          )
+        );
+      },
+      () => {
+        onProducts([]);
+      }
+    );
+  } catch {
+    onProducts([]);
+    return () => undefined;
   }
 };
 
@@ -141,22 +187,18 @@ export const subscribeToProducts = (
       query(productCollection, orderBy("createdAt", "desc")),
       (snapshot) => {
         if (snapshot.empty) {
-          onProducts(mockProducts);
+          onProducts([]);
           return;
         }
 
-        onProducts(
-          snapshot.docs
-            .map((item) => safeProduct({ id: item.id, ...item.data() }))
-            .filter((product) => product.isActive)
-        );
+        onProducts(snapshot.docs.map((item) => safeProduct({ id: item.id, ...item.data() })));
       },
       () => {
-        onProducts(mockProducts);
+        onProducts([]);
       }
     );
   } catch {
-    onProducts(mockProducts);
+    onProducts([]);
     return () => undefined;
   }
 };
@@ -168,10 +210,10 @@ export const fetchProductById = async (productId: string) => {
       return safeProduct({ id: snapshot.id, ...snapshot.data() });
     }
   } catch {
-    // Swallow and use fallback below.
+    // Swallow and use null fallback below.
   }
 
-  return mockProducts.find((product) => product.id === productId) || null;
+  return null;
 };
 
 export const fetchFeaturedProducts = async () => {
@@ -187,26 +229,52 @@ export const fetchDealProducts = async () => {
 export const fetchProductsBySeller = async (sellerId: string) => {
   try {
     const snapshot = await getDocs(
-      query(productCollection, where("sellerId", "==", sellerId), orderBy("createdAt", "desc"))
+      query(productCollection, where("sellerId", "==", sellerId))
     );
 
     if (snapshot.empty) {
-      return mockProducts.filter((product) => product.sellerId === sellerId);
+      return [];
     }
 
-    return snapshot.docs.map((item) => safeProduct({ id: item.id, ...item.data() }));
+    return sortByNewest(
+      snapshot.docs.map((item) => safeProduct({ id: item.id, ...item.data() }))
+    );
   } catch {
     try {
-      const snapshot = await getDocs(productCollection);
+      const snapshot = await getDocs(
+        query(productCollection, where("sellerId", "==", sellerId))
+      );
       const docs = snapshot.docs.map((item) =>
         safeProduct({ id: item.id, ...item.data() })
       );
-      return docs
-        .filter((product) => product.sellerId === sellerId)
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      return sortByNewest(docs.filter((product) => product.sellerId === sellerId));
     } catch {
-      return mockProducts.filter((product) => product.sellerId === sellerId);
+      return [];
     }
+  }
+};
+
+export const subscribeToSellerProducts = (
+  sellerId: string,
+  onProducts: (products: Product[]) => void
+) => {
+  try {
+    return onSnapshot(
+      query(productCollection, where("sellerId", "==", sellerId)),
+      (snapshot) => {
+        onProducts(
+          sortByNewest(
+            snapshot.docs.map((item) => safeProduct({ id: item.id, ...item.data() }))
+          )
+        );
+      },
+      () => {
+        onProducts([]);
+      }
+    );
+  } catch {
+    onProducts([]);
+    return () => undefined;
   }
 };
 
@@ -325,6 +393,36 @@ export const fetchSellerOrders = async (sellerId: string) => {
       .filter((order) => order.items.some((item) => item.sellerId === sellerId));
   } catch {
     return [];
+  }
+};
+
+export const subscribeToSellerOrders = (
+  sellerId: string,
+  onOrders: (orders: Order[]) => void
+) => {
+  try {
+    return onSnapshot(
+      orderCollection,
+      (snapshot) => {
+        onOrders(
+          sortByNewest(
+            snapshot.docs
+              .map((item) => ({ id: item.id, ...item.data() } as unknown as Order))
+              .filter((order) =>
+                Array.isArray(order.items)
+                  ? order.items.some((item) => item.sellerId === sellerId)
+                  : false
+              )
+          )
+        );
+      },
+      () => {
+        onOrders([]);
+      }
+    );
+  } catch {
+    onOrders([]);
+    return () => undefined;
   }
 };
 
@@ -647,8 +745,10 @@ export const rejectWalletTopUpRequest = async (
   );
 };
 
-export const placeWalletOrder = async (order: Order) => {
-  if (auth.currentUser?.uid !== order.buyerId) {
+const writeWalletOrder = async (order: Order, includeLedgerEntry: boolean) => {
+  const currentUser = await waitForAuthReady();
+
+  if (currentUser?.uid !== order.buyerId) {
     throw new Error("wallet-user-mismatch");
   }
 
@@ -668,10 +768,14 @@ export const placeWalletOrder = async (order: Order) => {
 
     const nextBalance = currentBalance - order.totalAmount;
     const orderRef = doc(db, "orders", order.orderId);
-    const walletTransactionRef = doc(collection(db, "walletTransactions"));
+    const walletTransactionRef = includeLedgerEntry
+      ? doc(collection(db, "walletTransactions"))
+      : null;
+    const paymentReference =
+      order.paymentReference || walletTransactionRef?.id || `WALLET-${order.orderId}`;
     const orderPayload = stripUndefinedDeep({
       ...order,
-      paymentReference: order.paymentReference || walletTransactionRef.id,
+      paymentReference,
     });
 
     transaction.set(orderRef, {
@@ -690,24 +794,47 @@ export const placeWalletOrder = async (order: Order) => {
       { merge: true }
     );
 
-    transaction.set(walletTransactionRef, {
-      id: walletTransactionRef.id,
-      userId: order.buyerId,
-      amount: order.totalAmount,
-      type: "debit",
-      source: "wallet_order",
-      status: "completed",
-      description: `Wallet payment for order ${order.orderId}`,
-      balanceAfter: nextBalance,
-      orderId: order.orderId,
-      createdAt: serverTimestamp(),
-    });
+    if (walletTransactionRef) {
+      transaction.set(walletTransactionRef, {
+        id: walletTransactionRef.id,
+        userId: order.buyerId,
+        amount: order.totalAmount,
+        type: "debit",
+        source: "wallet_order",
+        status: "completed",
+        description: `Wallet payment for order ${order.orderId}`,
+        balanceAfter: nextBalance,
+        orderId: order.orderId,
+        createdAt: serverTimestamp(),
+      });
+    }
 
     return {
       balanceAfter: nextBalance,
-      transactionId: walletTransactionRef.id,
+      transactionId: paymentReference,
+      ledgerCreated: Boolean(walletTransactionRef),
     };
   });
+};
+
+export const placeWalletOrder = async (order: Order) => {
+  try {
+    return await writeWalletOrder(order, true);
+  } catch (error) {
+    if (!isPermissionDeniedError(error)) {
+      throw error;
+    }
+
+    try {
+      return await writeWalletOrder(order, false);
+    } catch (fallbackError) {
+      if (isPermissionDeniedError(fallbackError)) {
+        throw new Error("wallet-permission-denied");
+      }
+
+      throw fallbackError;
+    }
+  }
 };
 
 export const subscribeToAllOrders = (
@@ -768,6 +895,36 @@ export const subscribeToUserNotifications = (
       onNotifications([]);
     }
   );
+
+export const subscribeToBuyerPageContent = (
+  onContent: (content: BuyerPageContent) => void
+) =>
+  onSnapshot(
+    buyerPageContentRef,
+    (snapshot) => {
+      onContent(
+        snapshot.exists()
+          ? normalizeBuyerPageContent(snapshot.data() as Partial<BuyerPageContent>)
+          : defaultBuyerPageContent
+      );
+    },
+    () => {
+      onContent(defaultBuyerPageContent);
+    }
+  );
+
+export const saveBuyerPageContent = async (content: BuyerPageContent) => {
+  requireAdminSession();
+
+  await setDoc(
+    buyerPageContentRef,
+    stripUndefinedDeep({
+      ...content,
+      updatedAt: serverTimestamp(),
+    }),
+    { merge: true }
+  );
+};
 
 export const markNotificationAsRead = async (
   uid: string,

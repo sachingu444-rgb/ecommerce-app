@@ -9,6 +9,11 @@ interface CategoryChipProps {
   color: string;
   active?: boolean;
   onPress?: () => void;
+  palette?: {
+    surface: string;
+    text: string;
+    border: string;
+  };
 }
 
 const CategoryChip = ({
@@ -17,7 +22,14 @@ const CategoryChip = ({
   color,
   active = false,
   onPress,
+  palette,
 }: CategoryChipProps) => {
+  const chipPalette = palette || {
+    surface: colors.white,
+    text: colors.text,
+    border: colors.border,
+  };
+
   return (
     <Pressable
       onPress={onPress}
@@ -27,8 +39,8 @@ const CategoryChip = ({
         gap: spacing.sm,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm + 2,
-        backgroundColor: active ? color : colors.white,
-        borderColor: active ? color : colors.border,
+        backgroundColor: active ? color : chipPalette.surface,
+        borderColor: active ? color : chipPalette.border,
         borderWidth: 1,
         borderRadius: radius.pill,
         marginRight: spacing.sm,
@@ -54,7 +66,7 @@ const CategoryChip = ({
         style={{
           fontSize: 13,
           fontWeight: "700",
-          color: active ? colors.white : colors.text,
+          color: active ? colors.white : chipPalette.text,
         }}
       >
         {label}
@@ -64,4 +76,3 @@ const CategoryChip = ({
 };
 
 export default CategoryChip;
-

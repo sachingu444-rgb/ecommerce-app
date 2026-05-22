@@ -99,7 +99,7 @@ const safeStringList = (value?: unknown) =>
 
 export const safeProduct = (product: Partial<Product>): Product => ({
   id: product.id || `product-${Date.now()}`,
-  sellerId: product.sellerId || "seller-demo",
+  sellerId: product.sellerId || "seller-unassigned",
   sellerName: product.sellerName || "ShopApp Seller",
   name: product.name || "Untitled Product",
   subtitle: product.subtitle?.trim() || undefined,

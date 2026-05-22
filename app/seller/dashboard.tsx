@@ -1,13 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import { sellerQuickActionColors } from "../../constants/mockData";
 import { colors, orderStatusColors, radius, spacing } from "../../constants/theme";
 import { useAuth } from "../../hooks/useAuth";
-import { fetchProductsBySeller, fetchSellerOrders } from "../../lib/firebaseApi";
+import { subscribeToSellerOrders, subscribeToSellerProducts } from "../../lib/firebaseApi";
 import { formatCurrency, formatDate, toDateValue, truncateId } from "../../lib/utils";
 import { Order, Product } from "../../types";
 
@@ -24,20 +23,21 @@ export default function SellerDashboardScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user) {
-        return;
-      }
+  useEffect(() => {
+    if (!user?.uid) {
+      setProducts([]);
+      setOrders([]);
+      return;
+    }
 
-      Promise.all([fetchProductsBySeller(user.uid), fetchSellerOrders(user.uid)]).then(
-        ([sellerProducts, sellerOrders]) => {
-          setProducts(sellerProducts);
-          setOrders(sellerOrders);
-        }
-      );
-    }, [user])
-  );
+    const unsubscribeProducts = subscribeToSellerProducts(user.uid, setProducts);
+    const unsubscribeOrders = subscribeToSellerOrders(user.uid, setOrders);
+
+    return () => {
+      unsubscribeProducts();
+      unsubscribeOrders();
+    };
+  }, [user?.uid]);
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -58,19 +58,26 @@ export default function SellerDashboardScreen() {
     }, 0);
   }, [currentMonth, currentYear, orders, user?.uid]);
 
+  const activeProducts = products.filter((product) => product.isActive);
+  const pausedProducts = products.filter((product) => !product.isActive);
+  const dealProducts = products.filter((product) => product.isDeal);
+  const outOfStockProducts = products.filter((product) => product.stock <= 0);
+  const activeOrders = orders.filter(
+    (order) => order.status !== "delivered" && order.status !== "cancelled"
+  );
   const pendingOrders = orders.filter((order) => order.status === "pending").length;
-  const lowStock = products.filter((product) => product.stock < 5);
+  const lowStock = products.filter((product) => product.stock > 0 && product.stock < 5);
   const recentOrders = orders.slice(0, 5);
   const stats = [
     { label: "Total Products", value: products.length, icon: "cube-outline", color: colors.primary },
-    { label: "Total Orders", value: orders.length, icon: "receipt-outline", color: colors.teal },
+    { label: "Live Products", value: activeProducts.length, icon: "storefront-outline", color: colors.success },
+    { label: "Orders In Progress", value: activeOrders.length, icon: "receipt-outline", color: colors.teal },
     {
       label: "Revenue This Month",
       value: formatCurrency(revenueThisMonth),
       icon: "wallet-outline",
       color: colors.accent,
     },
-    { label: "Pending Orders", value: pendingOrders, icon: "time-outline", color: colors.purple },
   ];
 
   return (
@@ -147,6 +154,47 @@ export default function SellerDashboardScreen() {
 
           <View
             style={{
+              backgroundColor: colors.white,
+              borderRadius: radius.lg,
+              padding: spacing.lg,
+              marginTop: spacing.lg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+              Store Health
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginTop: spacing.md }}>
+              {[
+                { label: "Paused", value: pausedProducts.length, color: colors.muted },
+                { label: "Out of Stock", value: outOfStockProducts.length, color: colors.danger },
+                { label: "Deals", value: dealProducts.length, color: colors.accent },
+                { label: "Pending Orders", value: pendingOrders, color: colors.purple },
+              ].map((item) => (
+                <View
+                  key={item.label}
+                  style={{
+                    flex: 1,
+                    minWidth: 130,
+                    backgroundColor: `${item.color}12`,
+                    borderRadius: radius.md,
+                    padding: spacing.md,
+                  }}
+                >
+                  <Text style={{ color: item.color, fontSize: 22, fontWeight: "900" }}>
+                    {item.value}
+                  </Text>
+                  <Text style={{ color: colors.muted, marginTop: 4, fontWeight: "700" }}>
+                    {item.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View
+            style={{
               marginTop: spacing.xl,
               marginBottom: spacing.md,
               flexDirection: "row",
@@ -159,6 +207,25 @@ export default function SellerDashboardScreen() {
               <Text style={{ color: colors.primary, fontWeight: "800" }}>View All</Text>
             </Pressable>
           </View>
+
+          {recentOrders.length === 0 ? (
+            <View
+              style={{
+                backgroundColor: colors.white,
+                borderRadius: radius.lg,
+                padding: spacing.lg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "900" }}>
+                No seller orders yet
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: spacing.sm }}>
+                Buyer orders for your live products will appear here automatically.
+              </Text>
+            </View>
+          ) : null}
 
           {recentOrders.map((order) => {
             const sellerAmount = order.items

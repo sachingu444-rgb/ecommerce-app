@@ -26,7 +26,7 @@ export default function SmartImage({
   height,
   borderRadius = 0,
   resizeMode = "cover",
-  fallbackEmoji = "🛍",
+  fallbackEmoji = "S",
   fallbackColor = "#F0F2F5",
   style,
 }: SmartImageProps) {
