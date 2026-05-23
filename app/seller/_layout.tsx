@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import { useEffect } from "react";
+import { useWindowDimensions } from "react-native";
 
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { colors } from "../../constants/theme";
@@ -9,7 +10,9 @@ import { useAuth } from "../../hooks/useAuth";
 export default function SellerLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const { width } = useWindowDimensions();
   const { authReady, user, profile } = useAuth();
+  const useSideToolbar = width >= 900;
 
   useEffect(() => {
     if (!authReady) {
@@ -46,6 +49,7 @@ export default function SellerLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
+          display: useSideToolbar ? "none" : "flex",
           backgroundColor: colors.white,
           borderTopColor: colors.border,
           height: 72,

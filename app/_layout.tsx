@@ -77,6 +77,11 @@ const RootNavigator = () => {
     const inAuth = firstSegment === "(auth)";
     const inSeller = firstSegment === "seller";
     const inAdmin = firstSegment === "admin";
+    const isPublicPage = firstSegment === "resume";
+
+    if (isPublicPage) {
+      return;
+    }
 
     if (!user && (inSeller || inAdmin)) {
       router.replace("/(auth)/login");
@@ -132,6 +137,7 @@ const RootNavigator = () => {
           <Stack.Screen name="addresses" />
           <Stack.Screen name="support" />
           <Stack.Screen name="about" />
+          <Stack.Screen name="resume" />
           <Stack.Screen name="order/[id]" />
           <Stack.Screen name="seller" />
           <Stack.Screen name="admin" />

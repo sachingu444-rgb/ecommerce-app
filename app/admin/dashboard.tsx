@@ -56,7 +56,7 @@ type WalletStatusFilter = "all" | WalletTopUpStatus;
 type ProductStatusFilter = "all" | "active" | "paused" | "deal" | "out";
 type UserRoleFilter = "all" | UserRole;
 type SellerStatusFilter = "all" | "pending" | "approved";
-type EditorSection = "pageLabels" | "hero" | "promo" | "category" | "sections";
+type EditorSection = "pageLabels" | "hero" | "promo" | "category" | "mediaShowcase" | "sections";
 
 const nextStatusMap: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: "confirmed",
@@ -412,10 +412,13 @@ const StoreEditorPanel = ({
   const isPublishing = busyKey === "publish-buyer-pages";
   const [selectedPromoIndex, setSelectedPromoIndex] = useState(0);
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const selectedPromo = promoItems[Math.min(selectedPromoIndex, Math.max(promoItems.length - 1, 0))];
   const selectedCategory = categoryItems[Math.min(selectedCategoryIndex, Math.max(categoryItems.length - 1, 0))];
+  const mediaItems = draft.home.mediaShowcase.items;
+  const selectedMedia = mediaItems[Math.min(selectedMediaIndex, Math.max(mediaItems.length - 1, 0))];
   const selectedAccent =
     activeSection === "hero"
       ? hero.accent
@@ -423,7 +426,9 @@ const StoreEditorPanel = ({
         ? "#2563EB"
         : activeSection === "category"
           ? "#F59E0B"
-          : adminColors.teal;
+          : activeSection === "mediaShowcase"
+            ? "#111827"
+            : adminColors.teal;
 
   const updatePages = (key: keyof BuyerPageContent["pages"], value: string) => {
     onChange({
@@ -529,10 +534,58 @@ const StoreEditorPanel = ({
     setSelectedCategoryIndex(Math.max(0, selectedCategoryIndex - 1));
   };
 
+  const updateMediaShowcase = (value: Partial<BuyerPageContent["home"]["mediaShowcase"]>) => {
+    updateHome({
+      mediaShowcase: {
+        ...draft.home.mediaShowcase,
+        ...value,
+      },
+    });
+  };
+
+  const updateMediaItem = (
+    index: number,
+    key: keyof BuyerPageContent["home"]["mediaShowcase"]["items"][number],
+    value: string
+  ) => {
+    const items = [...draft.home.mediaShowcase.items];
+    items[index] = {
+      ...items[index],
+      [key]: value,
+    };
+    updateMediaShowcase({ items });
+  };
+
+  const addMediaItem = () => {
+    const source = selectedMedia || defaultBuyerPageContent.home.mediaShowcase.items[0];
+    const items = [
+      ...draft.home.mediaShowcase.items,
+      {
+        ...source,
+        id: `media-${Date.now()}`,
+        label: "New bestseller",
+        videoUrl: "",
+      },
+    ];
+    updateMediaShowcase({ items });
+    setSelectedMediaIndex(items.length - 1);
+    onActiveSectionChange("mediaShowcase");
+  };
+
+  const removeMediaItem = () => {
+    if (draft.home.mediaShowcase.items.length <= 1) {
+      return;
+    }
+    const items = draft.home.mediaShowcase.items.filter((_, index) => index !== selectedMediaIndex);
+    updateMediaShowcase({ items });
+    setSelectedMediaIndex(Math.max(0, selectedMediaIndex - 1));
+  };
+
   const sections = [
     { key: "hero" as EditorSection, label: "Hero", icon: "image-outline" as IconName, depth: 1 },
     { key: "pageLabels" as EditorSection, label: "Navigations", icon: "menu-outline" as IconName, depth: 2 },
     { key: "promo" as EditorSection, label: "Category", icon: "grid-outline" as IconName, depth: 2 },
+    { key: "mediaShowcase" as EditorSection, label: "Bestsellers Video", icon: "play-circle-outline" as IconName, depth: 2 },
     { key: "sections" as EditorSection, label: "Sections", icon: "reorder-four-outline" as IconName, depth: 2 },
     { key: "category" as EditorSection, label: "Community", icon: "images-outline" as IconName, depth: 1 },
   ];
@@ -574,9 +627,11 @@ const StoreEditorPanel = ({
         ? "Grid Settings"
         : activeSection === "category"
           ? "Image Settings"
-          : activeSection === "sections"
-            ? "Section Settings"
-            : "Page Settings";
+          : activeSection === "mediaShowcase"
+            ? "Video Section Settings"
+            : activeSection === "sections"
+              ? "Section Settings"
+              : "Page Settings";
 
   const selectFrame = (section: EditorSection) => ({
     borderWidth: activeSection === section ? 2 : 1,
@@ -623,6 +678,8 @@ const StoreEditorPanel = ({
               addPromo();
             } else if (item.key === "category") {
               addCategory();
+            } else if (item.key === "mediaShowcase") {
+              addMediaItem();
             } else {
               onActiveSectionChange(item.key);
             }
@@ -735,6 +792,76 @@ const StoreEditorPanel = ({
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <ActionButton label="Add" icon="add-outline" ghost onPress={addCategory} />
             <ActionButton label="Remove" icon="trash-outline" tone={colors.danger} ghost onPress={removeCategory} disabled={draft.home.visualCategories.length <= 1} />
+          </View>
+        </Panel>
+      ) : null}
+
+      {activeSection === "mediaShowcase" && selectedMedia ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>
+            Editing Bestseller {selectedMediaIndex + 1}
+          </Text>
+          <EditorField
+            label="Section Heading"
+            value={draft.home.mediaShowcase.title}
+            onChangeText={(value) => updateMediaShowcase({ title: value })}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => updateMediaShowcase({ autoplay: !draft.home.mediaShowcase.autoplay })}
+            style={{
+              minHeight: 42,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: draft.home.mediaShowcase.autoplay ? colors.success : adminColors.lineStrong,
+              backgroundColor: draft.home.mediaShowcase.autoplay ? "#ECFDF3" : "#FAFBFC",
+              paddingHorizontal: spacing.md,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>
+              Autoplay carousel and videos
+            </Text>
+            <Ionicons
+              name={draft.home.mediaShowcase.autoplay ? "toggle" : "toggle-outline"}
+              size={24}
+              color={draft.home.mediaShowcase.autoplay ? colors.success : adminColors.muted}
+            />
+          </Pressable>
+          <EditorField
+            label="Card Label"
+            value={selectedMedia.label}
+            onChangeText={(value) => updateMediaItem(selectedMediaIndex, "label", value)}
+          />
+          <EditorField
+            label="Poster / Image URL"
+            value={selectedMedia.image}
+            onChangeText={(value) => updateMediaItem(selectedMediaIndex, "image", value)}
+            multiline
+          />
+          <EditorField
+            label="Video URL"
+            value={selectedMedia.videoUrl || ""}
+            onChangeText={(value) => updateMediaItem(selectedMediaIndex, "videoUrl", value)}
+            multiline
+          />
+          <EditorField
+            label="Category Route"
+            value={selectedMedia.category}
+            onChangeText={(value) => updateMediaItem(selectedMediaIndex, "category", value)}
+          />
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <ActionButton label="Add" icon="add-outline" ghost onPress={addMediaItem} />
+            <ActionButton
+              label="Remove"
+              icon="trash-outline"
+              tone={colors.danger}
+              ghost
+              onPress={removeMediaItem}
+              disabled={draft.home.mediaShowcase.items.length <= 1}
+            />
           </View>
         </Panel>
       ) : null}
@@ -1208,6 +1335,86 @@ const StoreEditorPanel = ({
 
                 <Pressable
                   accessibilityRole="button"
+                  onPress={() => onActiveSectionChange("mediaShowcase")}
+                  style={{ marginTop: spacing.xl, ...selectFrame("mediaShowcase") }}
+                >
+                  <Text
+                    style={{
+                      marginBottom: spacing.md,
+                      color: livePreviewColors.text,
+                      fontSize: 24,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {draft.home.mediaShowcase.title}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {mediaItems.map((item, index) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={item.id}
+                        onPress={() => {
+                          setSelectedMediaIndex(index);
+                          onActiveSectionChange("mediaShowcase");
+                        }}
+                        style={{
+                          width: isPreviewDesktop ? 220 : 150,
+                          marginRight: spacing.md,
+                          alignItems: "center",
+                          borderWidth: activeSection === "mediaShowcase" && selectedMediaIndex === index ? 2 : 0,
+                          borderColor: "#1688F0",
+                          borderRadius: radius.md,
+                          padding: activeSection === "mediaShowcase" && selectedMediaIndex === index ? 4 : 0,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: "100%",
+                            aspectRatio: 1,
+                            borderRadius: 12,
+                            overflow: "hidden",
+                            backgroundColor: "#000000",
+                          }}
+                        >
+                          <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                          {item.videoUrl ? (
+                            <View
+                              style={{
+                                position: "absolute",
+                                top: spacing.sm,
+                                right: spacing.sm,
+                                width: 30,
+                                height: 30,
+                                borderRadius: 15,
+                                backgroundColor: "rgba(0,0,0,0.55)",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Ionicons name="play" size={14} color={colors.white} />
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: livePreviewColors.text,
+                            fontSize: 12,
+                            fontWeight: "900",
+                            marginTop: spacing.xs,
+                            textAlign: "center",
+                            width: "100%",
+                          }}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
                   onPress={() => onActiveSectionChange("category")}
                   style={{ marginTop: spacing.xl, ...selectFrame("category") }}
                 >
@@ -1498,6 +1705,31 @@ const StoreEditorPanel = ({
                     }}
                   >
                     <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: 48 }} />
+                    <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 6 }} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {activeSection === "mediaShowcase" ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {mediaItems.map((item, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => setSelectedMediaIndex(index)}
+                    style={{
+                      width: 86,
+                      borderRadius: 8,
+                      borderWidth: selectedMediaIndex === index ? 2 : 1,
+                      borderColor: selectedMediaIndex === index ? "#1688F0" : adminColors.line,
+                      overflow: "hidden",
+                      backgroundColor: colors.white,
+                    }}
+                  >
+                    <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: 50 }} />
                     <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 6 }} numberOfLines={1}>
                       {item.label}
                     </Text>
@@ -3331,6 +3563,7 @@ export default function AdminDashboardScreen() {
     editor: [
       { label: "Hero", active: activeEditorSection === "hero", color: colors.primary, onPress: () => setActiveEditorSection("hero") },
       { label: "Promos", active: activeEditorSection === "promo", color: colors.accent, onPress: () => setActiveEditorSection("promo") },
+      { label: "Bestsellers", active: activeEditorSection === "mediaShowcase", color: colors.teal, onPress: () => setActiveEditorSection("mediaShowcase") },
       { label: "Pages", active: activeEditorSection === "pageLabels", color: colors.purple, onPress: () => setActiveEditorSection("pageLabels") },
     ],
     orders: [

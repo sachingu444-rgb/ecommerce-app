@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -30,7 +30,7 @@ import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../li
 import { showToast } from "../../lib/toast";
 import { getGreeting } from "../../lib/utils";
 import { useCartStore } from "../../store/cartStore";
-import { BuyerPageContent, Product } from "../../types";
+import { BuyerMediaShowcaseItem, BuyerPageContent, Product } from "../../types";
 
 type HeaderMenuKey = "login" | "more" | null;
 
@@ -1342,6 +1342,145 @@ const LovedOneCard = ({
   </Pressable>
 );
 
+const MediaShowcaseCard = ({
+  item,
+  width,
+  autoplay,
+  onPress,
+}: {
+  item: BuyerMediaShowcaseItem;
+  width: number;
+  autoplay: boolean;
+  onPress: () => void;
+}) => {
+  const canRenderVideo = Platform.OS === "web" && Boolean(item.videoUrl?.trim());
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width,
+        marginRight: spacing.md,
+        alignItems: "center",
+      }}
+    >
+      <View
+        style={{
+          width: "100%",
+          aspectRatio: 1,
+          borderRadius: 12,
+          overflow: "hidden",
+          backgroundColor: "#000000",
+        }}
+      >
+        {canRenderVideo ? (
+          createElement("video", {
+            src: item.videoUrl,
+            poster: item.image,
+            autoPlay: autoplay,
+            muted: true,
+            loop: true,
+            playsInline: true,
+            style: {
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            },
+          })
+        ) : (
+          <SmartImage
+            uri={item.image}
+            width="100%"
+            height="100%"
+            borderRadius={0}
+            resizeMode="cover"
+          />
+        )}
+      </View>
+      <Text
+        numberOfLines={1}
+        style={{
+          color: colors.text,
+          fontWeight: "900",
+          marginTop: spacing.xs,
+          textAlign: "center",
+          width: "100%",
+        }}
+      >
+        {item.label}
+      </Text>
+    </Pressable>
+  );
+};
+
+const MediaShowcaseSection = ({
+  title,
+  items,
+  autoplay,
+  isDesktop,
+  onItemPress,
+}: {
+  title: string;
+  items: BuyerMediaShowcaseItem[];
+  autoplay: boolean;
+  isDesktop: boolean;
+  onItemPress: (item: BuyerMediaShowcaseItem) => void;
+}) => {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const itemWidth = isDesktop ? 320 : 168;
+  const stepWidth = itemWidth + spacing.md;
+
+  useEffect(() => {
+    if (!autoplay || items.length <= 1) {
+      return;
+    }
+
+    let index = 0;
+    const timer = setInterval(() => {
+      index = (index + 1) % items.length;
+      scrollRef.current?.scrollTo({ x: index * stepWidth, animated: true });
+    }, 3200);
+
+    return () => clearInterval(timer);
+  }, [autoplay, items.length, stepWidth]);
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={{ marginTop: spacing.lg, marginBottom: spacing.lg }}>
+      <Text
+        style={{
+          color: colors.text,
+          fontSize: isDesktop ? 26 : 22,
+          fontWeight: "900",
+          marginBottom: spacing.md,
+        }}
+      >
+        {title}
+      </Text>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingRight: spacing.xl }}
+      >
+        {items.map((item) => (
+          <MediaShowcaseCard
+            key={item.id}
+            item={item}
+            width={itemWidth}
+            autoplay={autoplay}
+            onPress={() => onItemPress(item)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
+
 export default function HomeTabScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -2282,6 +2421,18 @@ export default function HomeTabScreen() {
           <AsymmetricPromoGrid
             items={promoGridItems}
             palette={homeColors}
+            isDesktop={isDesktopWeb}
+            onItemPress={(item) => {
+              setActiveCategory(item.category);
+              setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+              router.push({ pathname: "/search", params: { category: item.category } });
+            }}
+          />
+
+          <MediaShowcaseSection
+            title={homeContent.mediaShowcase.title}
+            items={homeContent.mediaShowcase.items}
+            autoplay={homeContent.mediaShowcase.autoplay}
             isDesktop={isDesktopWeb}
             onItemPress={(item) => {
               setActiveCategory(item.category);

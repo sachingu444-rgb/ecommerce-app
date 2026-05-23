@@ -247,11 +247,26 @@ export interface BuyerLovedOneItem {
   category: string;
 }
 
+export interface BuyerMediaShowcaseItem {
+  id: string;
+  label: string;
+  image: string;
+  videoUrl?: string;
+  category: string;
+}
+
+export interface BuyerMediaShowcase {
+  title: string;
+  autoplay: boolean;
+  items: BuyerMediaShowcaseItem[];
+}
+
 export interface BuyerHomeContent {
   heroes: BuyerHeroItem[];
   promoGrid: BuyerPromoGridItem[];
   visualCategories: BuyerVisualCategoryItem[];
   lovedOnes: BuyerLovedOneItem[];
+  mediaShowcase: BuyerMediaShowcase;
   lovedOnesTitle: string;
   dealsTitle: string;
   dealsActionLabel: string;

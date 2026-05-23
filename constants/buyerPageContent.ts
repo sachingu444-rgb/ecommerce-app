@@ -166,6 +166,47 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "All",
     },
   ],
+  mediaShowcase: {
+    title: "Explore Bestsellers",
+    autoplay: true,
+    items: [
+      {
+        id: "media-smartwatches",
+        label: "Smartwatches",
+        image: "https://images.unsplash.com/photo-1544117519-31a4b719223d?w=700",
+        videoUrl: "",
+        category: "Electronics",
+      },
+      {
+        id: "media-earbuds",
+        label: "Wireless Earbuds",
+        image: "https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?w=700",
+        videoUrl: "",
+        category: "Electronics",
+      },
+      {
+        id: "media-neckbands",
+        label: "Neckbands",
+        image: "https://images.unsplash.com/photo-1612444530582-fc66183b16f0?w=700",
+        videoUrl: "",
+        category: "Electronics",
+      },
+      {
+        id: "media-headphones",
+        label: "Headphones",
+        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700",
+        videoUrl: "",
+        category: "Electronics",
+      },
+      {
+        id: "media-speakers",
+        label: "Wireless Speakers",
+        image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=700",
+        videoUrl: "",
+        category: "Electronics",
+      },
+    ],
+  },
   lovedOnesTitle: "Shop for loved ones",
   dealsTitle: "Deal of the Day",
   dealsActionLabel: "See All",
@@ -204,6 +245,14 @@ export const normalizeBuyerPageContent = (
       defaultBuyerPageContent.home.visualCategories
     ),
     lovedOnes: mergeArray(value?.home?.lovedOnes, defaultBuyerPageContent.home.lovedOnes),
+    mediaShowcase: {
+      ...defaultBuyerPageContent.home.mediaShowcase,
+      ...(value?.home?.mediaShowcase || {}),
+      items: mergeArray(
+        value?.home?.mediaShowcase?.items,
+        defaultBuyerPageContent.home.mediaShowcase.items
+      ),
+    },
   },
   pages: {
     ...defaultBuyerPageContent.pages,
