@@ -238,7 +238,7 @@ export const normalizeBuyerPageContent = (
   home: {
     ...defaultBuyerPageContent.home,
     ...(value?.home || {}),
-    heroes: mergeArray(value?.home?.heroes, defaultBuyerPageContent.home.heroes),
+    heroes: mergeArray(value?.home?.heroes, defaultBuyerPageContent.home.heroes, 0),
     promoGrid: mergeArray(value?.home?.promoGrid, defaultBuyerPageContent.home.promoGrid, 4),
     visualCategories: mergeArray(
       value?.home?.visualCategories,

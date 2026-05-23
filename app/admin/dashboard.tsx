@@ -406,7 +406,9 @@ const StoreEditorPanel = ({
   onPublish: () => void;
   onReset: () => void;
 }) => {
-  const hero = draft.home.heroes[0] || defaultBuyerPageContent.home.heroes[0];
+  const defaultHero = defaultBuyerPageContent.home.heroes[0];
+  const hero = draft.home.heroes[0];
+  const previewHero = hero || defaultHero;
   const promoItems = draft.home.promoGrid.slice(0, 4);
   const categoryItems = draft.home.visualCategories.slice(0, 8);
   const isPublishing = busyKey === "publish-buyer-pages";
@@ -421,7 +423,7 @@ const StoreEditorPanel = ({
   const selectedMedia = mediaItems[Math.min(selectedMediaIndex, Math.max(mediaItems.length - 1, 0))];
   const selectedAccent =
     activeSection === "hero"
-      ? hero.accent
+      ? previewHero.accent
       : activeSection === "promo"
         ? "#2563EB"
         : activeSection === "category"
@@ -450,13 +452,38 @@ const StoreEditorPanel = ({
     });
   };
 
-  const updateHero = (key: keyof typeof hero, value: string) => {
-    const heroes = [...draft.home.heroes];
+  const updateHero = (
+    key: keyof BuyerPageContent["home"]["heroes"][number],
+    value: string
+  ) => {
+    const source = hero || {
+      ...defaultHero,
+      id: `hero-${Date.now()}`,
+    };
+    const heroes = draft.home.heroes.length > 0 ? [...draft.home.heroes] : [source];
     heroes[0] = {
-      ...hero,
+      ...source,
+      ...heroes[0],
       [key]: key === "durationHours" ? Number(value) || 24 : value,
     };
     updateHome({ heroes });
+  };
+
+  const restoreHero = () => {
+    updateHome({
+      heroes: [
+        {
+          ...defaultHero,
+          id: `hero-${Date.now()}`,
+        },
+      ],
+    });
+    onActiveSectionChange("hero");
+  };
+
+  const removeHero = () => {
+    updateHome({ heroes: [] });
+    onActiveSectionChange("promo");
   };
 
   const updatePromo = (
@@ -599,10 +626,10 @@ const StoreEditorPanel = ({
     { label: "Button", caption: "Set link or action", icon: "chatbox-outline" as IconName },
   ];
   const productCards = [
-    { title: "Macbook Pro M1 Pro 14\"", image: promoItems[0]?.image || hero.image },
-    { title: "Studio Monitor 27\"", image: promoItems[1]?.image || hero.image },
-    { title: "Travel Essentials", image: promoItems[2]?.image || hero.image },
-    { title: "Premium Accessories", image: promoItems[3]?.image || hero.image },
+    { title: "Macbook Pro M1 Pro 14\"", image: promoItems[0]?.image || previewHero.image },
+    { title: "Studio Monitor 27\"", image: promoItems[1]?.image || previewHero.image },
+    { title: "Travel Essentials", image: promoItems[2]?.image || previewHero.image },
+    { title: "Premium Accessories", image: promoItems[3]?.image || previewHero.image },
   ];
   const lovedItems = draft.home.lovedOnes.slice(0, 3);
   const isPreviewDesktop = previewMode === "desktop";
@@ -674,7 +701,13 @@ const StoreEditorPanel = ({
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            if (item.key === "promo") {
+            if (item.key === "hero") {
+              if (!hero) {
+                restoreHero();
+              } else {
+                onActiveSectionChange(item.key);
+              }
+            } else if (item.key === "promo") {
               addPromo();
             } else if (item.key === "category") {
               addCategory();
@@ -757,16 +790,30 @@ const StoreEditorPanel = ({
       ) : null}
 
       {activeSection === "hero" ? (
-        <>
-          <EditorField label="Eyebrow" value={hero.eyebrow} onChangeText={(value) => updateHero("eyebrow", value)} />
-          <EditorField label="Headline" value={hero.title} onChangeText={(value) => updateHero("title", value)} multiline />
-          <EditorField label="Subtitle" value={hero.subtitle} onChangeText={(value) => updateHero("subtitle", value)} multiline />
-          <EditorField label="Offer Button" value={hero.offer} onChangeText={(value) => updateHero("offer", value)} />
-          <EditorField label="Image URL" value={hero.image} onChangeText={(value) => updateHero("image", value)} multiline />
-          <EditorField label="Category Route" value={hero.category} onChangeText={(value) => updateHero("category", value)} />
-          <EditorField label="Accent Color" value={hero.accent} onChangeText={(value) => updateHero("accent", value)} />
-          <EditorField label="Countdown Hours" value={`${hero.durationHours || 24}`} onChangeText={(value) => updateHero("durationHours", value)} />
-        </>
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          {hero ? (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Editing Hero Section</Text>
+              <EditorField label="Eyebrow" value={hero.eyebrow} onChangeText={(value) => updateHero("eyebrow", value)} />
+              <EditorField label="Headline" value={hero.title} onChangeText={(value) => updateHero("title", value)} multiline />
+              <EditorField label="Subtitle" value={hero.subtitle} onChangeText={(value) => updateHero("subtitle", value)} multiline />
+              <EditorField label="Offer Button" value={hero.offer} onChangeText={(value) => updateHero("offer", value)} />
+              <EditorField label="Image URL" value={hero.image} onChangeText={(value) => updateHero("image", value)} multiline />
+              <EditorField label="Category Route" value={hero.category} onChangeText={(value) => updateHero("category", value)} />
+              <EditorField label="Accent Color" value={hero.accent} onChangeText={(value) => updateHero("accent", value)} />
+              <EditorField label="Countdown Hours" value={`${hero.durationHours || 24}`} onChangeText={(value) => updateHero("durationHours", value)} />
+              <ActionButton label="Remove Hero Section" icon="trash-outline" tone={colors.danger} ghost onPress={removeHero} />
+            </>
+          ) : (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Hero Section Removed</Text>
+              <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 18 }}>
+                Restore it to show the large home page banner again.
+              </Text>
+              <ActionButton label="Restore Hero Section" icon="add-outline" onPress={restoreHero} />
+            </>
+          )}
+        </Panel>
       ) : null}
 
       {activeSection === "promo" && selectedPromo ? (
@@ -1143,123 +1190,127 @@ const StoreEditorPanel = ({
               </View>
 
               <View style={{ padding: canvasPadding }}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onActiveSectionChange("hero")}
-                  style={{
-                    height: isPreviewDesktop ? 400 : 340,
-                    borderRadius: isPreviewDesktop ? radius.xl : radius.lg,
-                    overflow: "hidden",
-                    backgroundColor: livePreviewColors.surface,
-                    ...selectFrame("hero"),
-                  }}
-                >
-                  <Image source={{ uri: hero.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
-                  <LinearGradient
-                    colors={[livePreviewColors.heroStart, livePreviewColors.heroEnd]}
-                    style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-                  />
-                  <View
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      left: 0,
-                      padding: isPreviewDesktop ? spacing.xxxl : spacing.xl,
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <View
+                {hero ? (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => onActiveSectionChange("hero")}
                       style={{
-                        alignSelf: "flex-start",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: spacing.sm,
-                        borderRadius: radius.pill,
-                        backgroundColor: "rgba(255,255,255,0.12)",
-                        borderWidth: 1,
-                        borderColor: "rgba(255,255,255,0.2)",
-                        paddingHorizontal: spacing.md,
-                        paddingVertical: spacing.sm,
+                        height: isPreviewDesktop ? 400 : 340,
+                        borderRadius: isPreviewDesktop ? radius.xl : radius.lg,
+                        overflow: "hidden",
+                        backgroundColor: livePreviewColors.surface,
+                        ...selectFrame("hero"),
                       }}
                     >
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: hero.accent }} />
-                      <Text style={{ color: colors.white, fontSize: 12, fontWeight: "900" }}>
-                        {hero.eyebrow.toUpperCase()}
-                      </Text>
-                    </View>
-
-                    <View style={{ maxWidth: isPreviewDesktop ? 680 : 320 }}>
-                      <Text
+                      <Image source={{ uri: hero.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                      <LinearGradient
+                        colors={[livePreviewColors.heroStart, livePreviewColors.heroEnd]}
+                        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+                      />
+                      <View
                         style={{
-                          color: colors.white,
-                          fontSize: isPreviewDesktop ? 54 : 34,
-                          lineHeight: isPreviewDesktop ? 58 : 38,
-                          fontWeight: "900",
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          padding: isPreviewDesktop ? spacing.xxxl : spacing.xl,
+                          justifyContent: "space-between",
                         }}
                       >
-                        {hero.title}
-                      </Text>
-                      <Text
-                        style={{
-                          color: "rgba(255,255,255,0.82)",
-                          fontSize: isPreviewDesktop ? 18 : 15,
-                          lineHeight: isPreviewDesktop ? 28 : 22,
-                          marginTop: spacing.md,
-                          maxWidth: isPreviewDesktop ? 560 : 300,
-                          fontWeight: "600",
-                        }}
-                      >
-                        {hero.subtitle}
-                      </Text>
-                    </View>
-
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexShrink: 1 }}>
                         <View
                           style={{
-                            backgroundColor: hero.accent,
-                            borderRadius: radius.md,
-                            paddingHorizontal: spacing.lg,
+                            alignSelf: "flex-start",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: spacing.sm,
+                            borderRadius: radius.pill,
+                            backgroundColor: "rgba(255,255,255,0.12)",
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.2)",
+                            paddingHorizontal: spacing.md,
                             paddingVertical: spacing.sm,
                           }}
                         >
-                          <Text style={{ color: "#111827", fontSize: 14, fontWeight: "900" }}>{hero.offer}</Text>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: hero.accent }} />
+                          <Text style={{ color: colors.white, fontSize: 12, fontWeight: "900" }}>
+                            {hero.eyebrow.toUpperCase()}
+                          </Text>
                         </View>
-                        {isPreviewDesktop ? (
-                          <Text style={{ color: "rgba(255,255,255,0.72)", fontWeight: "700" }}>Tap to explore</Text>
-                        ) : null}
-                      </View>
-                      <View
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 24,
-                          backgroundColor: colors.white,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Ionicons name="arrow-forward" size={22} color={colors.primaryDark} />
-                      </View>
-                    </View>
-                  </View>
-                </Pressable>
 
-                <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
-                  {draft.home.heroes.map((item) => (
-                    <View
-                      key={item.id}
-                      style={{
-                        width: item.id === hero.id ? 28 : 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: item.id === hero.id ? livePreviewColors.primary : livePreviewColors.dot,
-                      }}
-                    />
-                  ))}
-                </View>
+                        <View style={{ maxWidth: isPreviewDesktop ? 680 : 320 }}>
+                          <Text
+                            style={{
+                              color: colors.white,
+                              fontSize: isPreviewDesktop ? 54 : 34,
+                              lineHeight: isPreviewDesktop ? 58 : 38,
+                              fontWeight: "900",
+                            }}
+                          >
+                            {hero.title}
+                          </Text>
+                          <Text
+                            style={{
+                              color: "rgba(255,255,255,0.82)",
+                              fontSize: isPreviewDesktop ? 18 : 15,
+                              lineHeight: isPreviewDesktop ? 28 : 22,
+                              marginTop: spacing.md,
+                              maxWidth: isPreviewDesktop ? 560 : 300,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {hero.subtitle}
+                          </Text>
+                        </View>
+
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexShrink: 1 }}>
+                            <View
+                              style={{
+                                backgroundColor: hero.accent,
+                                borderRadius: radius.md,
+                                paddingHorizontal: spacing.lg,
+                                paddingVertical: spacing.sm,
+                              }}
+                            >
+                              <Text style={{ color: "#111827", fontSize: 14, fontWeight: "900" }}>{hero.offer}</Text>
+                            </View>
+                            {isPreviewDesktop ? (
+                              <Text style={{ color: "rgba(255,255,255,0.72)", fontWeight: "700" }}>Tap to explore</Text>
+                            ) : null}
+                          </View>
+                          <View
+                            style={{
+                              width: 48,
+                              height: 48,
+                              borderRadius: 24,
+                              backgroundColor: colors.white,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Ionicons name="arrow-forward" size={22} color={colors.primaryDark} />
+                          </View>
+                        </View>
+                      </View>
+                    </Pressable>
+
+                    <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
+                      {draft.home.heroes.map((item) => (
+                        <View
+                          key={item.id}
+                          style={{
+                            width: item.id === hero.id ? 28 : 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: item.id === hero.id ? livePreviewColors.primary : livePreviewColors.dot,
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </>
+                ) : null}
 
                 <Pressable
                   accessibilityRole="button"

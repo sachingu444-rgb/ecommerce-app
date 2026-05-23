@@ -1529,7 +1529,8 @@ export default function HomeTabScreen() {
   );
   const visualCategoryItems = homeContent.visualCategories;
   const lovedOneItems = homeContent.lovedOnes;
-  const activeHero = premiumHeroItems[bannerIndex % premiumHeroItems.length];
+  const activeHero =
+    premiumHeroItems.length > 0 ? premiumHeroItems[bannerIndex % premiumHeroItems.length] : null;
   const homeCardPalette = useMemo(
     () => ({
       card: homeColors.surface,
@@ -1558,6 +1559,10 @@ export default function HomeTabScreen() {
   }, []);
 
   useEffect(() => {
+    if (premiumHeroItems.length === 0) {
+      return;
+    }
+
     const timer = setInterval(() => {
       setBannerIndex((current) => (current + 1) % premiumHeroItems.length);
     }, 4500);
@@ -2386,37 +2391,41 @@ export default function HomeTabScreen() {
             </Pressable>
           ) : null}
 
-<PremiumHeroBanner
-            item={activeHero}
-            palette={homeColors}
-            isDesktop={isDesktopWeb}
-            parallaxOffset={scrollY}
-            onPress={() => {
-              setActiveCategory(activeHero.category);
-              setActiveDesktopCategoryId(resolveDesktopCategoryId(activeHero.category));
-              router.push({ pathname: "/search", params: { category: activeHero.category } });
-            }}
-            isActive={true}
-          />
+          {activeHero ? (
+            <>
+              <PremiumHeroBanner
+                item={activeHero}
+                palette={homeColors}
+                isDesktop={isDesktopWeb}
+                parallaxOffset={scrollY}
+                onPress={() => {
+                  setActiveCategory(activeHero.category);
+                  setActiveDesktopCategoryId(resolveDesktopCategoryId(activeHero.category));
+                  router.push({ pathname: "/search", params: { category: activeHero.category } });
+                }}
+                isActive={true}
+              />
 
-          <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
-            {premiumHeroItems.map((hero, index) => {
-              const active = bannerIndex % premiumHeroItems.length === index;
+              <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
+                {premiumHeroItems.map((hero, index) => {
+                  const active = bannerIndex % premiumHeroItems.length === index;
 
-              return (
-                <Pressable
-                  key={hero.id}
-                  onPress={() => setBannerIndex(index)}
-                  style={{
-                    width: active ? 28 : 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: active ? homeColors.primary : homeColors.dot,
-                  }}
-                />
-              );
-            })}
-          </View>
+                  return (
+                    <Pressable
+                      key={hero.id}
+                      onPress={() => setBannerIndex(index)}
+                      style={{
+                        width: active ? 28 : 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: active ? homeColors.primary : homeColors.dot,
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
 
           <AsymmetricPromoGrid
             items={promoGridItems}
