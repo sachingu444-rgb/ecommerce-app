@@ -15,6 +15,7 @@ import {
   TextInput,
   useColorScheme,
   View,
+  ViewStyle,
 } from "react-native";
 
 import CategoryChip from "../../components/CategoryChip";
@@ -22,7 +23,7 @@ import DesktopSiteFooter from "../../components/DesktopSiteFooter";
 import DealCard from "../../components/DealCard";
 import ProductCard from "../../components/ProductCard";
 import SmartImage from "../../components/SmartImage";
-import { defaultBuyerPageContent } from "../../constants/buyerPageContent";
+import { defaultBuyerPageContent, normalizeBuyerHomeSectionOrder } from "../../constants/buyerPageContent";
 import { categoryList } from "../../constants/mockData";
 import { colors, radius, spacing } from "../../constants/theme";
 import { useAuth } from "../../hooks/useAuth";
@@ -30,7 +31,7 @@ import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../li
 import { showToast } from "../../lib/toast";
 import { getGreeting } from "../../lib/utils";
 import { useCartStore } from "../../store/cartStore";
-import { BuyerMediaShowcaseItem, BuyerPageContent, Product } from "../../types";
+import { BuyerHomeSectionKey, BuyerMediaShowcaseItem, BuyerPageContent, Product } from "../../types";
 
 type HeaderMenuKey = "login" | "more" | null;
 
@@ -1089,7 +1090,11 @@ const AsymmetricPromoGrid = ({
   isDesktop: boolean;
   onItemPress: (item: PromoGridItem) => void;
 }) => {
-  const [primary, second, third, fourth] = items;
+  const [primary, ...secondaryItems] = items;
+
+  if (!primary) {
+    return null;
+  }
 
   return (
     <View
@@ -1107,25 +1112,32 @@ const AsymmetricPromoGrid = ({
           onPress={() => onItemPress(primary)}
         />
       </View>
-      <View style={{ flex: 1, gap: spacing.md }}>
-        <PromoGridCard
-          item={second}
-          palette={palette}
-          onPress={() => onItemPress(second)}
-        />
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <PromoGridCard
-            item={third}
-            palette={palette}
-            onPress={() => onItemPress(third)}
-          />
-          <PromoGridCard
-            item={fourth}
-            palette={palette}
-            onPress={() => onItemPress(fourth)}
-          />
+      {secondaryItems.length > 0 ? (
+        <View style={{ flex: 1, gap: spacing.md }}>
+          {secondaryItems.slice(0, 3).map((item, index) =>
+            index === 0 ? (
+              <PromoGridCard
+                key={item.id}
+                item={item}
+                palette={palette}
+                onPress={() => onItemPress(item)}
+              />
+            ) : null
+          )}
+          {secondaryItems.length > 1 ? (
+            <View style={{ flexDirection: "row", gap: spacing.md }}>
+              {secondaryItems.slice(1, 3).map((item) => (
+                <PromoGridCard
+                  key={item.id}
+                  item={item}
+                  palette={palette}
+                  onPress={() => onItemPress(item)}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
-      </View>
+      ) : null}
     </View>
   );
 };
@@ -1511,24 +1523,29 @@ export default function HomeTabScreen() {
   const [scrollY, setScrollY] = useState(0);
   const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
   const homeContent = pageContent.home;
+  const hiddenHomeSections = homeContent.hiddenSections || [];
+  const homeSectionOrder = normalizeBuyerHomeSectionOrder(homeContent.sectionOrder);
+  const getHomeSectionOrder = (section: BuyerHomeSectionKey) => homeSectionOrder.indexOf(section);
+  const isHomeSectionHidden = (section: BuyerHomeSectionKey) =>
+    hiddenHomeSections.includes(section);
   const premiumHeroItems = useMemo<PremiumHeroItem[]>(
     () =>
-      homeContent.heroes.map((hero) => ({
+      isHomeSectionHidden("hero") ? [] : homeContent.heroes.map((hero) => ({
         ...hero,
         endTime: Date.now() + Math.max(hero.durationHours || 24, 1) * 60 * 60 * 1000,
       })),
-    [homeContent.heroes]
+    [hiddenHomeSections, homeContent.heroes]
   );
   const promoGridItems = useMemo<PromoGridItem[]>(
     () =>
-      homeContent.promoGrid.map((item) => ({
+      isHomeSectionHidden("promo") ? [] : homeContent.promoGrid.map((item) => ({
         ...item,
         icon: item.icon as keyof typeof Ionicons.glyphMap,
       })),
-    [homeContent.promoGrid]
+    [hiddenHomeSections, homeContent.promoGrid]
   );
-  const visualCategoryItems = homeContent.visualCategories;
-  const lovedOneItems = homeContent.lovedOnes;
+  const visualCategoryItems = isHomeSectionHidden("category") ? [] : homeContent.visualCategories;
+  const lovedOneItems = isHomeSectionHidden("lovedOnes") ? [] : homeContent.lovedOnes;
   const activeHero =
     premiumHeroItems.length > 0 ? premiumHeroItems[bannerIndex % premiumHeroItems.length] : null;
   const homeCardPalette = useMemo(
@@ -2392,7 +2409,7 @@ export default function HomeTabScreen() {
           ) : null}
 
           {activeHero ? (
-            <>
+            <View style={{ order: getHomeSectionOrder("hero") } as ViewStyle}>
               <PremiumHeroBanner
                 item={activeHero}
                 palette={homeColors}
@@ -2424,99 +2441,113 @@ export default function HomeTabScreen() {
                   );
                 })}
               </View>
-            </>
+            </View>
           ) : null}
 
-          <AsymmetricPromoGrid
-            items={promoGridItems}
-            palette={homeColors}
-            isDesktop={isDesktopWeb}
-            onItemPress={(item) => {
-              setActiveCategory(item.category);
-              setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
-              router.push({ pathname: "/search", params: { category: item.category } });
-            }}
-          />
+          <View style={{ order: getHomeSectionOrder("promo") } as ViewStyle}>
+            <AsymmetricPromoGrid
+              items={promoGridItems}
+              palette={homeColors}
+              isDesktop={isDesktopWeb}
+              onItemPress={(item) => {
+                setActiveCategory(item.category);
+                setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                router.push({ pathname: "/search", params: { category: item.category } });
+              }}
+            />
+          </View>
 
-          <MediaShowcaseSection
-            title={homeContent.mediaShowcase.title}
-            items={homeContent.mediaShowcase.items}
-            autoplay={homeContent.mediaShowcase.autoplay}
-            isDesktop={isDesktopWeb}
-            onItemPress={(item) => {
-              setActiveCategory(item.category);
-              setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
-              router.push({ pathname: "/search", params: { category: item.category } });
-            }}
-          />
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingRight: spacing.xl,
-            }}
-          >
-            <View>
-              <View style={{ flexDirection: "row" }}>
-                {visualCategoryItems.slice(0, 10).map((item) => (
-                  <VisualCategoryTile
-                    key={item.id}
-                    item={item}
-                    palette={homeColors}
-                    onPress={() => {
-                      setActiveCategory(item.category);
-                      setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
-                    }}
-                  />
-                ))}
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                {visualCategoryItems.slice(10).map((item) => (
-                  <VisualCategoryTile
-                    key={item.id}
-                    item={item}
-                    palette={homeColors}
-                    onPress={() => {
-                      setActiveCategory(item.category);
-                      setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
-                    }}
-                  />
-                ))}
-              </View>
-            </View>
-          </ScrollView>
-
-          <Text
-            style={{
-              marginTop: spacing.lg,
-              marginBottom: spacing.md,
-              color: homeColors.text,
-              fontSize: 24,
-              fontWeight: "900",
-            }}
-          >
-            {homeContent.lovedOnesTitle}
-          </Text>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {lovedOneItems.map((item) => (
-              <LovedOneCard
-                key={item.id}
-                item={item}
-                width={lovedCardWidth}
-                palette={homeColors}
-                onPress={() => {
+          {!isHomeSectionHidden("mediaShowcase") ? (
+            <View style={{ order: getHomeSectionOrder("mediaShowcase") } as ViewStyle}>
+              <MediaShowcaseSection
+                title={homeContent.mediaShowcase.title}
+                items={homeContent.mediaShowcase.items}
+                autoplay={homeContent.mediaShowcase.autoplay}
+                isDesktop={isDesktopWeb}
+                onItemPress={(item) => {
                   setActiveCategory(item.category);
                   setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
                   router.push({ pathname: "/search", params: { category: item.category } });
                 }}
               />
-            ))}
-          </ScrollView>
+            </View>
+          ) : null}
+
+          {visualCategoryItems.length > 0 ? (
+            <View style={{ order: getHomeSectionOrder("category") } as ViewStyle}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingRight: spacing.xl,
+                }}
+              >
+                <View>
+                  <View style={{ flexDirection: "row" }}>
+                    {visualCategoryItems.slice(0, 10).map((item) => (
+                      <VisualCategoryTile
+                        key={item.id}
+                        item={item}
+                        palette={homeColors}
+                        onPress={() => {
+                          setActiveCategory(item.category);
+                          setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: "row" }}>
+                    {visualCategoryItems.slice(10).map((item) => (
+                      <VisualCategoryTile
+                        key={item.id}
+                        item={item}
+                        palette={homeColors}
+                        onPress={() => {
+                          setActiveCategory(item.category);
+                          setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                        }}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {lovedOneItems.length > 0 ? (
+            <View style={{ order: getHomeSectionOrder("lovedOnes") } as ViewStyle}>
+              <Text
+                style={{
+                  marginTop: spacing.lg,
+                  marginBottom: spacing.md,
+                  color: homeColors.text,
+                  fontSize: 24,
+                  fontWeight: "900",
+                }}
+              >
+                {homeContent.lovedOnesTitle}
+              </Text>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {lovedOneItems.map((item) => (
+                  <LovedOneCard
+                    key={item.id}
+                    item={item}
+                    width={lovedCardWidth}
+                    palette={homeColors}
+                    onPress={() => {
+                      setActiveCategory(item.category);
+                      setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                      router.push({ pathname: "/search", params: { category: item.category } });
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
 
           {!isDesktopWeb ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.sm }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ order: 20 } as ViewStyle} contentContainerStyle={{ paddingBottom: spacing.sm }}>
               {categoryList
                 .filter((category) =>
                   ["All", "Electronics", "Fashion", "Home", "Sports", "Books", "Beauty"].includes(category.name)
@@ -2539,68 +2570,71 @@ export default function HomeTabScreen() {
             </ScrollView>
           ) : null}
 
-          <SectionHeader
-            title={homeContent.dealsTitle}
-            icon="flash"
-            iconColor={colors.accent}
-            actionLabel={homeContent.dealsActionLabel}
-            palette={homeColors}
-            onActionPress={() => router.push("/deals")}
-          />
+          <View style={{ order: 21 } as ViewStyle}>
+            <SectionHeader
+              title={homeContent.dealsTitle}
+              icon="flash"
+              iconColor={colors.accent}
+              actionLabel={homeContent.dealsActionLabel}
+              palette={homeColors}
+              onActionPress={() => router.push("/deals")}
+            />
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {dealProducts.map((product) => (
-              <DealCard
-                key={product.id}
-                product={product}
-                palette={homeCardPalette}
-                onPress={() => router.push(`/product/${product.id}`)}
-              />
-            ))}
-          </ScrollView>
-
-          <SectionHeader
-            title={homeContent.featuredTitle}
-            icon="star"
-            iconColor={colors.star}
-            actionLabel={homeContent.featuredActionLabel}
-            palette={homeColors}
-            onActionPress={() =>
-              router.push({
-                pathname: "/search",
-                params: { q: searchText, category: activeCategory },
-              })
-            }
-          />
-
-          {loading ? (
-            <View style={{ paddingVertical: spacing.xxxl }}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-              {featuredProducts.map((product) => (
-                <ProductCard
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {dealProducts.map((product) => (
+                <DealCard
                   key={product.id}
                   product={product}
                   palette={homeCardPalette}
                   onPress={() => router.push(`/product/${product.id}`)}
-                  onAddToCart={() => handleAddToCart(product)}
                 />
               ))}
-            </View>
-          )}
+            </ScrollView>
+
+            <SectionHeader
+              title={homeContent.featuredTitle}
+              icon="star"
+              iconColor={colors.star}
+              actionLabel={homeContent.featuredActionLabel}
+              palette={homeColors}
+              onActionPress={() =>
+                router.push({
+                  pathname: "/search",
+                  params: { q: searchText, category: activeCategory },
+                })
+              }
+            />
+
+            {loading ? (
+              <View style={{ paddingVertical: spacing.xxxl }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                {featuredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    palette={homeCardPalette}
+                    onPress={() => router.push(`/product/${product.id}`)}
+                    onAddToCart={() => handleAddToCart(product)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
 
           {featuredProducts.length === 0 && !loading ? (
             <View
               style={{
+                order: 22,
                 backgroundColor: homeColors.surface,
                 padding: spacing.xl,
                 borderRadius: radius.lg,
                 alignItems: "center",
                 borderWidth: 1,
                 borderColor: homeColors.border,
-              }}
+              } as ViewStyle}
             >
               <Text style={{ fontSize: 16, fontWeight: "800", color: homeColors.text }}>
                 No products match that search yet.
@@ -2611,7 +2645,9 @@ export default function HomeTabScreen() {
             </View>
           ) : null}
 
-          <DesktopSiteFooter />
+          <View style={{ order: 23 } as ViewStyle}>
+            <DesktopSiteFooter />
+          </View>
 
         </View>
       </ScrollView>

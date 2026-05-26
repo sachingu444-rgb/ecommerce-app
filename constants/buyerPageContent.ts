@@ -1,8 +1,17 @@
 import {
   BuyerHomeContent,
+  BuyerHomeSectionKey,
   BuyerPageContent,
   BuyerPageLabels,
 } from "../types";
+
+export const defaultBuyerHomeSectionOrder: BuyerHomeSectionKey[] = [
+  "hero",
+  "promo",
+  "mediaShowcase",
+  "category",
+  "lovedOnes",
+];
 
 const defaultHomeContent: BuyerHomeContent = {
   heroes: [
@@ -143,6 +152,7 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "Fashion",
     },
   ],
+  sectionOrder: defaultBuyerHomeSectionOrder,
   lovedOnes: [
     {
       id: "loved-men",
@@ -232,6 +242,21 @@ export const defaultBuyerPageContent: BuyerPageContent = {
 const mergeArray = <T>(value: unknown, fallback: T[], minLength = 1) =>
   Array.isArray(value) && value.length >= minLength ? (value as T[]) : fallback;
 
+export const normalizeBuyerHomeSectionOrder = (value?: unknown): BuyerHomeSectionKey[] => {
+  if (!Array.isArray(value)) {
+    return defaultBuyerHomeSectionOrder;
+  }
+
+  const validSections = new Set(defaultBuyerHomeSectionOrder);
+  const orderedSections = value.filter(
+    (section): section is BuyerHomeSectionKey =>
+      typeof section === "string" && validSections.has(section as BuyerHomeSectionKey)
+  );
+  const missingSections = defaultBuyerHomeSectionOrder.filter((section) => !orderedSections.includes(section));
+
+  return [...orderedSections, ...missingSections];
+};
+
 export const normalizeBuyerPageContent = (
   value?: Partial<BuyerPageContent> | null
 ): BuyerPageContent => ({
@@ -239,20 +264,26 @@ export const normalizeBuyerPageContent = (
     ...defaultBuyerPageContent.home,
     ...(value?.home || {}),
     heroes: mergeArray(value?.home?.heroes, defaultBuyerPageContent.home.heroes, 0),
-    promoGrid: mergeArray(value?.home?.promoGrid, defaultBuyerPageContent.home.promoGrid, 4),
+    promoGrid: mergeArray(value?.home?.promoGrid, defaultBuyerPageContent.home.promoGrid, 0),
     visualCategories: mergeArray(
       value?.home?.visualCategories,
-      defaultBuyerPageContent.home.visualCategories
+      defaultBuyerPageContent.home.visualCategories,
+      0
     ),
-    lovedOnes: mergeArray(value?.home?.lovedOnes, defaultBuyerPageContent.home.lovedOnes),
+    lovedOnes: mergeArray(value?.home?.lovedOnes, defaultBuyerPageContent.home.lovedOnes, 0),
     mediaShowcase: {
       ...defaultBuyerPageContent.home.mediaShowcase,
       ...(value?.home?.mediaShowcase || {}),
       items: mergeArray(
         value?.home?.mediaShowcase?.items,
-        defaultBuyerPageContent.home.mediaShowcase.items
+        defaultBuyerPageContent.home.mediaShowcase.items,
+        0
       ),
     },
+    hiddenSections: Array.isArray(value?.home?.hiddenSections)
+      ? value.home.hiddenSections
+      : defaultBuyerPageContent.home.hiddenSections || [],
+    sectionOrder: normalizeBuyerHomeSectionOrder(value?.home?.sectionOrder),
   },
   pages: {
     ...defaultBuyerPageContent.pages,

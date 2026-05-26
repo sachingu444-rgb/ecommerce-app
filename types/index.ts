@@ -261,12 +261,16 @@ export interface BuyerMediaShowcase {
   items: BuyerMediaShowcaseItem[];
 }
 
+export type BuyerHomeSectionKey = "hero" | "promo" | "category" | "mediaShowcase" | "lovedOnes";
+
 export interface BuyerHomeContent {
   heroes: BuyerHeroItem[];
   promoGrid: BuyerPromoGridItem[];
   visualCategories: BuyerVisualCategoryItem[];
   lovedOnes: BuyerLovedOneItem[];
   mediaShowcase: BuyerMediaShowcase;
+  hiddenSections?: BuyerHomeSectionKey[];
+  sectionOrder?: BuyerHomeSectionKey[];
   lovedOnesTitle: string;
   dealsTitle: string;
   dealsActionLabel: string;
