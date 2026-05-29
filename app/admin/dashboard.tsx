@@ -18,8 +18,11 @@ import {
 
 import FullScreenLoader from "../../components/FullScreenLoader";
 import {
+  defaultBuyerCategoryPages,
+  defaultBuyerEditablePages,
   defaultBuyerHomeSectionOrder,
   defaultBuyerPageContent,
+  normalizeBuyerPageContent,
   normalizeBuyerHomeSectionOrder,
 } from "../../constants/buyerPageContent";
 import { colors, orderStatusColors, radius, shadows, spacing } from "../../constants/theme";
@@ -42,6 +45,8 @@ import { showToast } from "../../lib/toast";
 import { formatCurrency, formatDate, getInitials, toDateValue, truncateId } from "../../lib/utils";
 import {
   BuyerPageContent,
+  BuyerCategoryPage,
+  BuyerEditablePage,
   BuyerHomeSectionKey,
   Order,
   OrderStatus,
@@ -62,8 +67,23 @@ type WalletStatusFilter = "all" | WalletTopUpStatus;
 type ProductStatusFilter = "all" | "active" | "paused" | "deal" | "out";
 type UserRoleFilter = "all" | UserRole;
 type SellerStatusFilter = "all" | "pending" | "approved";
-type EditorSection = "pageLabels" | "hero" | "promo" | "category" | "mediaShowcase" | "sections" | "lovedOnes";
+type EditorSection =
+  | "pageLabels"
+  | "hero"
+  | "promo"
+  | "brandSpotlight"
+  | "category"
+  | "mediaShowcase"
+  | "sections"
+  | "categoryPages"
+  | "sitePages"
+  | "lovedOnes";
 type HideableEditorSection = BuyerHomeSectionKey;
+type EditorIssue = {
+  type: "error" | "warning";
+  label: string;
+  section?: EditorSection;
+};
 
 const nextStatusMap: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: "confirmed",
@@ -206,6 +226,72 @@ const queryMatches = (query: string, values: unknown[]) => {
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
 
 const getOrderTime = (order: Order) => toDateValue(order.createdAt)?.getTime() || 0;
+
+const looksLikeRemoteImage = (value?: string) => {
+  const text = value?.trim();
+  return Boolean(text && /^https?:\/\//i.test(text));
+};
+
+const countEditorItems = (content: BuyerPageContent) =>
+  content.home.heroes.length +
+  content.home.promoGrid.length +
+  content.home.brandSpotlight.length +
+  content.home.visualCategories.length +
+  content.home.mediaShowcase.items.length +
+  content.home.lovedOnes.length +
+  content.categoryPages.reduce((sum, page) => sum + (page.banners?.length || 0) + (page.tiles?.length || 0), 0) +
+  content.editablePages.reduce((sum, page) => sum + page.cards.length, 0);
+
+const getEditorIssues = (content: BuyerPageContent): EditorIssue[] => {
+  const issues: EditorIssue[] = [];
+  const hiddenSections = content.home.hiddenSections || [];
+
+  if (defaultBuyerHomeSectionOrder.every((section) => hiddenSections.includes(section))) {
+    issues.push({
+      type: "error",
+      label: "At least one home section must stay visible.",
+      section: "sections",
+    });
+  }
+
+  content.home.heroes.forEach((hero, index) => {
+    if (!hero.title.trim()) {
+      issues.push({ type: "warning", label: `Hero ${index + 1} headline is empty.`, section: "hero" });
+    }
+    if (!looksLikeRemoteImage(hero.image)) {
+      issues.push({ type: "warning", label: `Hero ${index + 1} image URL may not load.`, section: "hero" });
+    }
+  });
+
+  content.home.promoGrid.forEach((promo, index) => {
+    if (!promo.title.trim()) {
+      issues.push({ type: "warning", label: `Promo ${index + 1} title is empty.`, section: "promo" });
+    }
+    if (!looksLikeRemoteImage(promo.image)) {
+      issues.push({ type: "warning", label: `Promo ${index + 1} image URL may not load.`, section: "promo" });
+    }
+  });
+
+  content.home.visualCategories.forEach((category, index) => {
+    if (!category.label.trim()) {
+      issues.push({ type: "warning", label: `Category tile ${index + 1} label is empty.`, section: "category" });
+    }
+    if (!looksLikeRemoteImage(category.image)) {
+      issues.push({ type: "warning", label: `Category tile ${index + 1} image URL may not load.`, section: "category" });
+    }
+  });
+
+  content.categoryPages.forEach((page) => {
+    if (!page.label.trim() || !page.category.trim()) {
+      issues.push({ type: "warning", label: `${page.label || "Category page"} needs label and filter.`, section: "categoryPages" });
+    }
+    if (!looksLikeRemoteImage(page.heroImage)) {
+      issues.push({ type: "warning", label: `${page.label} hero image URL may not load.`, section: "categoryPages" });
+    }
+  });
+
+  return issues;
+};
 
 const Panel = ({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) => (
   <View
@@ -402,6 +488,7 @@ const StoreEditorPanel = ({
   isDesktop,
   isDirty,
   busyKey,
+  issues,
   onPublish,
   onReset,
   onClose,
@@ -413,6 +500,7 @@ const StoreEditorPanel = ({
   isDesktop: boolean;
   isDirty: boolean;
   busyKey: string | null;
+  issues: EditorIssue[];
   onPublish: () => void;
   onReset: () => void;
   onClose: () => void;
@@ -423,11 +511,22 @@ const StoreEditorPanel = ({
   const promoItems = draft.home.promoGrid;
   const categoryItems = draft.home.visualCategories;
   const isPublishing = busyKey === "publish-buyer-pages";
+  const errorCount = issues.filter((issue) => issue.type === "error").length;
+  const warningCount = issues.filter((issue) => issue.type === "warning").length;
+  const visibleHomeSectionCount = defaultBuyerHomeSectionOrder.filter(
+    (section) => !(draft.home.hiddenSections || []).includes(section)
+  ).length;
+  const totalEditableItems = countEditorItems(draft);
   const [selectedPromoIndex, setSelectedPromoIndex] = useState(0);
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [selectedLovedIndex, setSelectedLovedIndex] = useState(0);
   const [selectedHeroIndex, setSelectedHeroIndex] = useState(0);
+  const [selectedBrandIndex, setSelectedBrandIndex] = useState(0);
+  const [selectedCategoryPageIndex, setSelectedCategoryPageIndex] = useState(0);
+  const [selectedCategoryPageBannerIndex, setSelectedCategoryPageBannerIndex] = useState(0);
+  const [selectedCategoryPageTileIndex, setSelectedCategoryPageTileIndex] = useState(0);
+  const [selectedSitePageIndex, setSelectedSitePageIndex] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [editorShellWidth, setEditorShellWidth] = useState(0);
@@ -443,16 +542,29 @@ const StoreEditorPanel = ({
   const selectedCategory = categoryItems[Math.min(selectedCategoryIndex, Math.max(categoryItems.length - 1, 0))];
   const mediaItems = draft.home.mediaShowcase.items;
   const selectedMedia = mediaItems[Math.min(selectedMediaIndex, Math.max(mediaItems.length - 1, 0))];
+  const brandItems = draft.home.brandSpotlight;
+  const selectedBrand = brandItems[Math.min(selectedBrandIndex, Math.max(brandItems.length - 1, 0))];
+  const categoryPageItems = draft.categoryPages || defaultBuyerCategoryPages;
+  const selectedCategoryPage =
+    categoryPageItems[Math.min(selectedCategoryPageIndex, Math.max(categoryPageItems.length - 1, 0))];
+  const sitePageItems = draft.editablePages || defaultBuyerEditablePages;
+  const selectedSitePage = sitePageItems[Math.min(selectedSitePageIndex, Math.max(sitePageItems.length - 1, 0))];
   const selectedAccent =
     activeSection === "hero"
       ? previewHero.accent
       : activeSection === "promo"
         ? "#2563EB"
-        : activeSection === "category"
-          ? "#F59E0B"
-          : activeSection === "mediaShowcase"
-            ? "#111827"
-            : adminColors.teal;
+        : activeSection === "brandSpotlight"
+          ? "#E5FF00"
+          : activeSection === "category"
+            ? "#F59E0B"
+            : activeSection === "mediaShowcase"
+              ? "#111827"
+              : activeSection === "categoryPages"
+                ? selectedCategoryPage?.accent || adminColors.teal
+                : activeSection === "sitePages"
+                  ? selectedSitePage?.accent || adminColors.teal
+              : adminColors.teal;
 
   const updatePages = (key: keyof BuyerPageContent["pages"], value: string) => {
     onChange({
@@ -462,6 +574,275 @@ const StoreEditorPanel = ({
         [key]: value,
       },
     });
+  };
+
+  const updateCategoryPage = (index: number, key: keyof BuyerCategoryPage, value: string | number | boolean) => {
+    const categoryPages = [...categoryPageItems];
+    categoryPages[index] = {
+      ...categoryPages[index],
+      [key]: value,
+    };
+    onChange({
+      ...draft,
+      categoryPages,
+    });
+  };
+
+  const restoreCategoryPages = () => {
+    onChange({
+      ...draft,
+      categoryPages: defaultBuyerCategoryPages,
+    });
+    setSelectedCategoryPageIndex(0);
+  };
+
+  const updateCategoryPageBanner = (
+    pageIndex: number,
+    bannerIndex: number,
+    key: "image" | "title" | "subtitle" | "linkCategory",
+    value: string
+  ) => {
+    const categoryPages = [...categoryPageItems];
+    const page = categoryPages[pageIndex];
+    const banners = [...(page.banners || [])];
+    banners[bannerIndex] = { ...banners[bannerIndex], [key]: value };
+    categoryPages[pageIndex] = { ...page, banners };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const addCategoryPageBanner = () => {
+    if (!selectedCategoryPage) return;
+    const categoryPages = [...categoryPageItems];
+    categoryPages[selectedCategoryPageIndex] = {
+      ...selectedCategoryPage,
+      banners: [
+        ...(selectedCategoryPage.banners || []),
+        {
+          id: `banner-${Date.now()}`,
+          image: selectedCategoryPage.heroImage,
+          title: "New banner",
+          subtitle: "Add banner subtitle",
+          linkCategory: selectedCategoryPage.category,
+        },
+      ],
+    };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const removeCategoryPageBanner = (bannerIndex: number) => {
+    if (!selectedCategoryPage) return;
+    const categoryPages = [...categoryPageItems];
+    categoryPages[selectedCategoryPageIndex] = {
+      ...selectedCategoryPage,
+      banners: (selectedCategoryPage.banners || []).filter((_, index) => index !== bannerIndex),
+    };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const updateCategoryPageTile = (
+    pageIndex: number,
+    tileIndex: number,
+    key: "image" | "label" | "linkCategory",
+    value: string
+  ) => {
+    const categoryPages = [...categoryPageItems];
+    const page = categoryPages[pageIndex];
+    const tiles = [...(page.tiles || [])];
+    tiles[tileIndex] = { ...tiles[tileIndex], [key]: value };
+    categoryPages[pageIndex] = { ...page, tiles };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const addCategoryPageTile = () => {
+    if (!selectedCategoryPage) return;
+    const categoryPages = [...categoryPageItems];
+    categoryPages[selectedCategoryPageIndex] = {
+      ...selectedCategoryPage,
+      tiles: [
+        ...(selectedCategoryPage.tiles || []),
+        {
+          id: `tile-${Date.now()}`,
+          label: "New tile",
+          image: selectedCategoryPage.heroImage,
+          linkCategory: selectedCategoryPage.category,
+        },
+      ],
+    };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const removeCategoryPageTile = (tileIndex: number) => {
+    if (!selectedCategoryPage) return;
+    const categoryPages = [...categoryPageItems];
+    categoryPages[selectedCategoryPageIndex] = {
+      ...selectedCategoryPage,
+      tiles: (selectedCategoryPage.tiles || []).filter((_, index) => index !== tileIndex),
+    };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const applyCategoryPagePreset = (preset: "marketplace" | "compact" | "visual" | "minimal") => {
+    if (!selectedCategoryPage) return;
+
+    const presets = {
+      marketplace: {
+        productCount: 8,
+        columns: 4,
+        mobileColumns: 2,
+        horizontalGap: 12,
+        verticalGap: 24,
+        tileSize: 106,
+        bannerHeight: 247,
+        paddingTop: 24,
+        paddingBottom: 48,
+        alignment: "left",
+        highlightBackground: "#F2FF00",
+        typographyPreset: "Heading 6",
+      },
+      compact: {
+        productCount: 6,
+        columns: 5,
+        mobileColumns: 2,
+        horizontalGap: 8,
+        verticalGap: 16,
+        tileSize: 82,
+        bannerHeight: 190,
+        paddingTop: 18,
+        paddingBottom: 28,
+        alignment: "left",
+        highlightBackground: "#F8FAFC",
+        typographyPreset: "Heading 6",
+      },
+      visual: {
+        productCount: 10,
+        columns: 3,
+        mobileColumns: 1,
+        horizontalGap: 18,
+        verticalGap: 32,
+        tileSize: 128,
+        bannerHeight: 310,
+        paddingTop: 32,
+        paddingBottom: 56,
+        alignment: "center",
+        highlightBackground: "#FFF7C7",
+        typographyPreset: "Heading 4",
+      },
+      minimal: {
+        productCount: 4,
+        columns: 4,
+        mobileColumns: 1,
+        horizontalGap: 10,
+        verticalGap: 18,
+        tileSize: 72,
+        bannerHeight: 170,
+        paddingTop: 12,
+        paddingBottom: 20,
+        alignment: "left",
+        highlightBackground: "#FFFFFF",
+        typographyPreset: "Heading 6",
+      },
+    }[preset];
+
+    const categoryPages = [...categoryPageItems];
+    categoryPages[selectedCategoryPageIndex] = {
+      ...selectedCategoryPage,
+      ...presets,
+      alignment: presets.alignment as BuyerCategoryPage["alignment"],
+      sectionWidth: "page",
+      carouselOnMobile: true,
+    };
+    onChange({ ...draft, categoryPages });
+  };
+
+  const updateSitePage = (index: number, key: keyof BuyerEditablePage, value: string) => {
+    const editablePages = [...sitePageItems];
+    editablePages[index] = {
+      ...editablePages[index],
+      [key]: value,
+    };
+    onChange({
+      ...draft,
+      editablePages,
+      pages: {
+        ...draft.pages,
+        ...(editablePages[index].id === "categories"
+          ? { categoriesTitle: editablePages[index].title, categoriesSubtitle: editablePages[index].subtitle }
+          : {}),
+        ...(editablePages[index].id === "products"
+          ? { productsTitle: editablePages[index].title, productsSubtitle: editablePages[index].subtitle }
+          : {}),
+        ...(editablePages[index].id === "deals"
+          ? { dealsTitle: editablePages[index].title, dealsSubtitle: editablePages[index].subtitle }
+          : {}),
+      },
+    });
+  };
+
+  const updateSitePageCard = (
+    pageIndex: number,
+    cardIndex: number,
+    key: keyof BuyerEditablePage["cards"][number],
+    value: string
+  ) => {
+    const editablePages = [...sitePageItems];
+    const cards = [...(editablePages[pageIndex].cards || [])];
+    cards[cardIndex] = {
+      ...cards[cardIndex],
+      [key]: value,
+    };
+    editablePages[pageIndex] = {
+      ...editablePages[pageIndex],
+      cards,
+    };
+    onChange({
+      ...draft,
+      editablePages,
+    });
+  };
+
+  const addSitePageCard = () => {
+    if (!selectedSitePage) return;
+    const editablePages = [...sitePageItems];
+    editablePages[selectedSitePageIndex] = {
+      ...selectedSitePage,
+      cards: [
+        ...(selectedSitePage.cards || []),
+        {
+          id: `card-${Date.now()}`,
+          title: "New card",
+          description: "Add card description",
+          icon: "information-circle-outline",
+        },
+      ],
+    };
+    onChange({ ...draft, editablePages });
+  };
+
+  const removeSitePageCard = (cardIndex: number) => {
+    if (!selectedSitePage) return;
+    const editablePages = [...sitePageItems];
+    editablePages[selectedSitePageIndex] = {
+      ...selectedSitePage,
+      cards: selectedSitePage.cards.filter((_, index) => index !== cardIndex),
+    };
+    onChange({ ...draft, editablePages });
+  };
+
+  const restoreSitePages = () => {
+    onChange({
+      ...draft,
+      editablePages: defaultBuyerEditablePages,
+      pages: {
+        ...draft.pages,
+        categoriesTitle: defaultBuyerEditablePages[0].title,
+        categoriesSubtitle: defaultBuyerEditablePages[0].subtitle,
+        productsTitle: defaultBuyerEditablePages[1].title,
+        productsSubtitle: defaultBuyerEditablePages[1].subtitle,
+        dealsTitle: defaultBuyerEditablePages[2].title,
+        dealsSubtitle: defaultBuyerEditablePages[2].subtitle,
+      },
+    });
+    setSelectedSitePageIndex(0);
   };
 
   const updateHome = (value: Partial<BuyerPageContent["home"]>) => {
@@ -641,6 +1022,40 @@ const StoreEditorPanel = ({
     setSelectedLovedIndex(clamp(selectedLovedIndex - 1, 0, Math.max(lovedOnes.length - 1, 0)));
   };
 
+  const updateBrandSpotlight = (
+    index: number,
+    key: keyof BuyerPageContent["home"]["brandSpotlight"][number],
+    value: string
+  ) => {
+    const brandSpotlight = [...draft.home.brandSpotlight];
+    brandSpotlight[index] = { ...brandSpotlight[index], [key]: value };
+    updateHome({ brandSpotlight });
+  };
+
+  const addBrandSpotlight = () => {
+    const source = selectedBrand || defaultBuyerPageContent.home.brandSpotlight[0];
+    const brandSpotlight = [
+      ...draft.home.brandSpotlight,
+      {
+        ...source,
+        id: `brand-${Date.now()}`,
+        brand: "Brand",
+        title: "New offer",
+        subtitle: "Add promo line",
+      },
+    ];
+    updateHome({ brandSpotlight });
+    setSelectedBrandIndex(brandSpotlight.length - 1);
+    onActiveSectionChange("brandSpotlight");
+  };
+
+  const removeBrandSpotlight = () => {
+    if (draft.home.brandSpotlight.length === 0) return;
+    const brandSpotlight = draft.home.brandSpotlight.filter((_, i) => i !== selectedBrandIndex);
+    updateHome({ brandSpotlight });
+    setSelectedBrandIndex(clamp(selectedBrandIndex - 1, 0, Math.max(brandSpotlight.length - 1, 0)));
+  };
+
   const updateMediaShowcase = (value: Partial<BuyerPageContent["home"]["mediaShowcase"]>) => {
     updateHome({
       mediaShowcase: {
@@ -699,6 +1114,8 @@ const StoreEditorPanel = ({
       addMediaItem();
     } else if (activeSection === "lovedOnes") {
       addLovedOne();
+    } else if (activeSection === "brandSpotlight") {
+      addBrandSpotlight();
     }
   };
 
@@ -713,18 +1130,22 @@ const StoreEditorPanel = ({
       removeMediaItem();
     } else if (activeSection === "lovedOnes") {
       removeLovedOne();
+    } else if (activeSection === "brandSpotlight") {
+      removeBrandSpotlight();
     }
   };
 
   const canAddActiveSection =
     activeSection === "hero" ||
     activeSection === "promo" ||
+    activeSection === "brandSpotlight" ||
     activeSection === "category" ||
     activeSection === "mediaShowcase" ||
     activeSection === "lovedOnes";
   const canRemoveActiveSection =
     (activeSection === "hero" && draft.home.heroes.length > 0) ||
     (activeSection === "promo" && draft.home.promoGrid.length > 0) ||
+    (activeSection === "brandSpotlight" && draft.home.brandSpotlight.length > 0) ||
     (activeSection === "category" && draft.home.visualCategories.length > 0) ||
     (activeSection === "mediaShowcase" && draft.home.mediaShowcase.items.length > 0) ||
     (activeSection === "lovedOnes" && draft.home.lovedOnes.length > 0);
@@ -768,10 +1189,13 @@ const StoreEditorPanel = ({
     { key: "hero" as EditorSection, label: "Hero Banner", icon: "image-outline" as IconName, depth: 1 },
     { key: "pageLabels" as EditorSection, label: "Nav Labels", icon: "menu-outline" as IconName, depth: 1 },
     { key: "promo" as EditorSection, label: "Promo Grid", icon: "grid-outline" as IconName, depth: 1 },
+    { key: "brandSpotlight" as EditorSection, label: "Brands Spotlight", icon: "pricetag-outline" as IconName, depth: 1 },
     { key: "mediaShowcase" as EditorSection, label: "Bestsellers", icon: "play-circle-outline" as IconName, depth: 1 },
     { key: "lovedOnes" as EditorSection, label: "Loved Ones", icon: "heart-outline" as IconName, depth: 1 },
     { key: "sections" as EditorSection, label: "Headings", icon: "reorder-four-outline" as IconName, depth: 1 },
     { key: "category" as EditorSection, label: "Categories", icon: "images-outline" as IconName, depth: 1 },
+    { key: "categoryPages" as EditorSection, label: "Category Pages", icon: "file-tray-stacked-outline" as IconName, depth: 1 },
+    { key: "sitePages" as EditorSection, label: "All Pages", icon: "documents-outline" as IconName, depth: 1 },
   ];
   const sectionByKey = Object.fromEntries(allSections.map((section) => [section.key, section])) as Record<
     EditorSection,
@@ -780,16 +1204,9 @@ const StoreEditorPanel = ({
   const sections = [
     ...orderedHomeSections.map((section) => sectionByKey[section]),
     sectionByKey.sections,
+    sectionByKey.sitePages,
+    sectionByKey.categoryPages,
     sectionByKey.pageLabels,
-  ];
-  const blockLibrary = [
-    { label: "Sections", caption: "Add column", icon: "albums-outline" as IconName },
-    { label: "Container", caption: "Add button for action", icon: "file-tray-stacked-outline" as IconName },
-    { label: "Grid", caption: "Divide blocks visually", icon: "grid-outline" as IconName },
-    { label: "Columns", caption: "Add menu to navigate", icon: "columns-outline" as IconName },
-    { label: "Div Block", caption: "Add column", icon: "square-outline" as IconName },
-    { label: "List", caption: "Add button for action", icon: "list-outline" as IconName },
-    { label: "Button", caption: "Set link or action", icon: "chatbox-outline" as IconName },
   ];
   const productCards = [
     { title: "Macbook Pro M1 Pro 14\"", image: promoItems[0]?.image || previewHero.image },
@@ -797,9 +1214,18 @@ const StoreEditorPanel = ({
     { title: "Travel Essentials", image: promoItems[2]?.image || previewHero.image },
     { title: "Premium Accessories", image: promoItems[3]?.image || previewHero.image },
   ];
+  const categoryPreviewProducts = [
+    { title: "Men's Sandals & Floaters", image: selectedCategoryPage?.tiles?.[0]?.image || selectedCategoryPage?.heroImage || previewHero.image },
+    { title: "Air Conditioners", image: selectedCategoryPage?.tiles?.[1]?.image || selectedCategoryPage?.heroImage || previewHero.image },
+    { title: "Handbags", image: selectedCategoryPage?.tiles?.[2]?.image || selectedCategoryPage?.heroImage || previewHero.image },
+    { title: "Mobile Chargers", image: selectedCategoryPage?.tiles?.[3]?.image || selectedCategoryPage?.heroImage || previewHero.image },
+    { title: "Daily Essentials", image: selectedCategoryPage?.tiles?.[4]?.image || selectedCategoryPage?.heroImage || previewHero.image },
+  ];
   const lovedItems = draft.home.lovedOnes.slice(0, 3);
+  const brandPreviewItems = draft.home.brandSpotlight.slice(0, 6);
   const showHeroPreview = !isSectionHidden("hero");
   const showPromoPreview = !isSectionHidden("promo");
+  const showBrandPreview = !isSectionHidden("brandSpotlight");
   const showMediaPreview = !isSectionHidden("mediaShowcase");
   const showCategoryPreview = !isSectionHidden("category");
   const showLovedPreview = !isSectionHidden("lovedOnes");
@@ -824,12 +1250,18 @@ const StoreEditorPanel = ({
       ? "Hero Settings"
       : activeSection === "promo"
         ? "Grid Settings"
+        : activeSection === "brandSpotlight"
+          ? "Brand Spotlight Settings"
         : activeSection === "category"
           ? "Image Settings"
           : activeSection === "mediaShowcase"
             ? "Video Section Settings"
             : activeSection === "lovedOnes"
               ? "Loved Ones Settings"
+              : activeSection === "categoryPages"
+                ? "Category Page Settings"
+                : activeSection === "sitePages"
+                  ? "Page Content Settings"
               : activeSection === "sections"
                 ? "Section Settings"
                 : "Page Settings";
@@ -840,6 +1272,12 @@ const StoreEditorPanel = ({
   });
 
   const editorSectionLabel = sections.find((item) => item.key === activeSection)?.label || "Home page";
+  const previewPageLabel =
+    activeSection === "categoryPages" && selectedCategoryPage
+      ? `${selectedCategoryPage.label} page`
+      : activeSection === "sitePages" && selectedSitePage
+        ? `${selectedSitePage.label} page`
+        : "Home page";
 
   const resizePane = (side: "left" | "right", delta: number) => {
     if (!isDesktop || !editorShellWidth) return;
@@ -943,7 +1381,8 @@ const StoreEditorPanel = ({
   }) => {
     const active = activeSection === item.key;
     const hidden = isSectionHidden(item.key);
-    const canAddItem = item.key !== "pageLabels" && item.key !== "sections";
+    const canAddItem =
+      item.key !== "pageLabels" && item.key !== "sections" && item.key !== "categoryPages" && item.key !== "sitePages";
     const canReorder = isHideableSection(item.key);
     const orderIndex = canReorder ? orderedHomeSections.indexOf(item.key as HideableEditorSection) : -1;
     const dragResponder = useMemo(
@@ -1064,6 +1503,8 @@ const StoreEditorPanel = ({
               addMediaItem();
             } else if (item.key === "lovedOnes") {
               addLovedOne();
+            } else if (item.key === "brandSpotlight") {
+              addBrandSpotlight();
             } else {
               onActiveSectionChange(item.key);
             }
@@ -1130,7 +1571,728 @@ const StoreEditorPanel = ({
     </View>
   );
 
-  const RenderActiveFields = () => (
+  const ModernSettingGroup = ({ title, children }: { title: string; children: ReactNode }) => (
+    <View style={{ gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: adminColors.line }}>
+      <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>{title}</Text>
+      {children}
+    </View>
+  );
+
+  const ModernSettingRow = ({ label, children }: { label: string; children: ReactNode }) => (
+    <View style={{ minHeight: 38, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+      <Text style={{ width: 104, color: adminColors.muted, fontSize: 12, fontWeight: "700" }}>{label}</Text>
+      <View style={{ flex: 1, alignItems: "flex-end" }}>{children}</View>
+    </View>
+  );
+
+  const ModernSegmented = <T extends string>({
+    value,
+    options,
+    onChange,
+  }: {
+    value: T;
+    options: { label: string; value: T; icon?: IconName }[];
+    onChange: (value: T) => void;
+  }) => (
+    <View
+      style={{
+        minHeight: 32,
+        borderRadius: 8,
+        backgroundColor: "#F0F0F0",
+        flexDirection: "row",
+        padding: 2,
+      }}
+    >
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            accessibilityRole="button"
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            style={{
+              minWidth: 56,
+              paddingHorizontal: spacing.sm,
+              borderRadius: 7,
+              backgroundColor: active ? colors.white : "transparent",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 4,
+              ...((active ? shadows.card : {}) as object),
+            }}
+          >
+            {option.icon ? <Ionicons name={option.icon} size={14} color={adminColors.ink} /> : null}
+            <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: active ? "900" : "700" }}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const ModernToggle = ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) => (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      style={{
+        width: 34,
+        height: 22,
+        borderRadius: 12,
+        backgroundColor: value ? "#111827" : "#8E8E8E",
+        padding: 3,
+        alignItems: value ? "flex-end" : "flex-start",
+      }}
+    >
+      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: colors.white }} />
+    </Pressable>
+  );
+
+  const ModernNumberControl = ({
+    value,
+    unit,
+    min = 0,
+    max = 100,
+    onChange,
+  }: {
+    value: number;
+    unit?: string;
+    min?: number;
+    max?: number;
+    onChange: (value: number) => void;
+  }) => {
+    const normalized = clamp(value, min, max);
+    const percent = max === min ? 0 : ((normalized - min) / (max - min)) * 100;
+
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <Pressable
+          accessibilityRole="adjustable"
+          onPress={() => onChange(clamp(value + 1, min, max))}
+          style={{ width: 88, height: 22, justifyContent: "center" }}
+        >
+          <View style={{ height: 3, borderRadius: 999, backgroundColor: "#E5E5E5" }}>
+            <View style={{ width: `${percent}%`, height: 3, borderRadius: 999, backgroundColor: "#2B2B2B" }} />
+          </View>
+          <View
+            style={{
+              position: "absolute",
+              left: `${percent}%`,
+              marginLeft: -8,
+              width: 16,
+              height: 16,
+              borderRadius: 8,
+              backgroundColor: "#2B2B2B",
+            }}
+          />
+        </Pressable>
+        <View
+          style={{
+            width: 70,
+            height: 34,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#A7A7A7",
+            backgroundColor: colors.white,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: spacing.sm,
+          }}
+        >
+          <TextInput
+            value={`${value}`}
+            onChangeText={(text) => onChange(clamp(Number(text) || 0, min, max))}
+            keyboardType="numeric"
+            style={{ flex: 1, color: adminColors.ink, fontSize: 12, fontWeight: "800", outlineStyle: "none" as never }}
+          />
+          {unit ? <Text style={{ color: adminColors.muted, fontSize: 12 }}>{unit}</Text> : null}
+        </View>
+      </View>
+    );
+  };
+
+  const ModernSelect = ({
+    value,
+    icon,
+  }: {
+    value: string;
+    icon?: IconName;
+  }) => (
+    <View
+      style={{
+        height: 34,
+        minWidth: 132,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#A7A7A7",
+        backgroundColor: colors.white,
+        paddingHorizontal: spacing.sm,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: spacing.sm,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+        {icon ? <Ionicons name={icon} size={15} color={adminColors.ink} /> : null}
+        <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "800" }}>{value}</Text>
+      </View>
+      <Ionicons name="chevron-down" size={14} color={adminColors.muted} />
+    </View>
+  );
+
+  const EasyEditorCard = ({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) => (
+    <View
+      style={{
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: adminColors.line,
+        backgroundColor: "#FBFCFD",
+        padding: spacing.md,
+        gap: spacing.md,
+      }}
+    >
+      <View>
+        <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>{title}</Text>
+        {subtitle ? <Text style={{ color: adminColors.muted, fontSize: 11, marginTop: 3 }}>{subtitle}</Text> : null}
+      </View>
+      {children}
+    </View>
+  );
+
+  const renderCategoryPageEasyEditor = () => {
+    if (!selectedCategoryPage) {
+      return (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Category Pages Removed</Text>
+          <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 18 }}>
+            Restore the default category pages to edit each top navigation page again.
+          </Text>
+          <ActionButton label="Restore Category Pages" icon="refresh-outline" onPress={restoreCategoryPages} />
+        </Panel>
+      );
+    }
+
+    const banners = selectedCategoryPage.banners || [];
+    const selectedBanner = banners[Math.min(selectedCategoryPageBannerIndex, Math.max(banners.length - 1, 0))];
+    const tiles = selectedCategoryPage.tiles || [];
+    const selectedTile = tiles[Math.min(selectedCategoryPageTileIndex, Math.max(tiles.length - 1, 0))];
+
+    return (
+      <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: adminColors.ink, fontSize: 15, fontWeight: "900" }}>
+              {selectedCategoryPage.label} Page
+            </Text>
+            <Text style={{ color: adminColors.muted, fontSize: 11, marginTop: 3 }}>
+              Click preview items, then edit only that item here.
+            </Text>
+          </View>
+          <ActionButton label="Reset" icon="refresh-outline" ghost onPress={restoreCategoryPages} />
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+          {categoryPageItems.map((page, index) => (
+            <Pressable
+              accessibilityRole="button"
+              key={page.id}
+              onPress={() => {
+                setSelectedCategoryPageIndex(index);
+                setSelectedCategoryPageBannerIndex(0);
+                setSelectedCategoryPageTileIndex(0);
+              }}
+              style={{
+                minWidth: 82,
+                borderRadius: 10,
+                borderWidth: selectedCategoryPageIndex === index ? 2 : 1,
+                borderColor: selectedCategoryPageIndex === index ? "#1688F0" : adminColors.line,
+                backgroundColor: selectedCategoryPageIndex === index ? "#EEF6FF" : colors.white,
+                padding: spacing.sm,
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Ionicons name={page.icon as IconName} size={18} color={page.accent} />
+              <Text style={{ color: adminColors.ink, fontSize: 11, fontWeight: "900" }} numberOfLines={1}>
+                {page.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <EasyEditorCard title="Quick Design" subtitle="Pick a layout preset, then fine tune only if needed.">
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            {[
+              { label: "Marketplace", value: "marketplace" as const, icon: "storefront-outline" as IconName },
+              { label: "Compact", value: "compact" as const, icon: "grid-outline" as IconName },
+              { label: "Visual", value: "visual" as const, icon: "images-outline" as IconName },
+              { label: "Minimal", value: "minimal" as const, icon: "remove-outline" as IconName },
+            ].map((preset) => (
+              <Pressable
+                accessibilityRole="button"
+                key={preset.value}
+                onPress={() => applyCategoryPagePreset(preset.value)}
+                style={{
+                  flexGrow: 1,
+                  minWidth: 112,
+                  minHeight: 42,
+                  borderRadius: 9,
+                  borderWidth: 1,
+                  borderColor: adminColors.lineStrong,
+                  backgroundColor: colors.white,
+                  paddingHorizontal: spacing.sm,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: spacing.xs,
+                }}
+              >
+                <Ionicons name={preset.icon} size={15} color={adminColors.ink} />
+                <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>{preset.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </EasyEditorCard>
+
+        <EasyEditorCard title="Main Text" subtitle="Most common edits for this category page.">
+          <EditorField
+            label="Navigation Label"
+            value={selectedCategoryPage.label}
+            onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "label", value)}
+          />
+          <EditorField
+            label="Highlight Title"
+            value={selectedCategoryPage.highlightTitle || ""}
+            onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "highlightTitle", value)}
+          />
+          <EditorField
+            label="Button Text"
+            value={selectedCategoryPage.productCardCta || ""}
+            onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "productCardCta", value)}
+          />
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <EditorField
+                label="Category Filter"
+                value={selectedCategoryPage.category}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "category", value)}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <EditorField
+                label="Accent"
+                value={selectedCategoryPage.accent}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "accent", value)}
+              />
+            </View>
+          </View>
+        </EasyEditorCard>
+
+        <EasyEditorCard title="Selected Banner" subtitle="Click a banner in preview or choose one below.">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {banners.map((banner, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={banner.id}
+                onPress={() => setSelectedCategoryPageBannerIndex(index)}
+                style={{
+                  width: 82,
+                  borderRadius: 8,
+                  borderWidth: selectedCategoryPageBannerIndex === index ? 2 : 1,
+                  borderColor: selectedCategoryPageBannerIndex === index ? "#1688F0" : adminColors.line,
+                  overflow: "hidden",
+                  backgroundColor: colors.white,
+                }}
+              >
+                <Image source={{ uri: banner.image }} resizeMode="cover" style={{ width: "100%", height: 46 }} />
+                <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 5 }} numberOfLines={1}>
+                  {index + 1}. {banner.title}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {selectedBanner ? (
+            <>
+              <EditorField
+                label="Title"
+                value={selectedBanner.title}
+                onChangeText={(value) =>
+                  updateCategoryPageBanner(selectedCategoryPageIndex, selectedCategoryPageBannerIndex, "title", value)
+                }
+              />
+              <EditorField
+                label="Image URL"
+                value={selectedBanner.image}
+                onChangeText={(value) =>
+                  updateCategoryPageBanner(selectedCategoryPageIndex, selectedCategoryPageBannerIndex, "image", value)
+                }
+                multiline
+              />
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <ActionButton label="Add Banner" icon="add-outline" ghost onPress={addCategoryPageBanner} />
+                <ActionButton
+                  label="Remove"
+                  icon="trash-outline"
+                  tone={colors.danger}
+                  ghost
+                  disabled={banners.length <= 1}
+                  onPress={() => removeCategoryPageBanner(selectedCategoryPageBannerIndex)}
+                />
+              </View>
+            </>
+          ) : (
+            <ActionButton label="Add Banner" icon="add-outline" ghost onPress={addCategoryPageBanner} />
+          )}
+        </EasyEditorCard>
+
+        <EasyEditorCard title="Selected Tile" subtitle="Click a small tile in preview or choose one below.">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {tiles.map((tile, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={tile.id}
+                onPress={() => setSelectedCategoryPageTileIndex(index)}
+                style={{
+                  width: 70,
+                  borderRadius: 8,
+                  borderWidth: selectedCategoryPageTileIndex === index ? 2 : 1,
+                  borderColor: selectedCategoryPageTileIndex === index ? "#1688F0" : adminColors.line,
+                  overflow: "hidden",
+                  backgroundColor: colors.white,
+                }}
+              >
+                <Image source={{ uri: tile.image }} resizeMode="cover" style={{ width: "100%", height: 46 }} />
+                <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 5 }} numberOfLines={1}>
+                  {tile.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {selectedTile ? (
+            <>
+              <EditorField
+                label="Label"
+                value={selectedTile.label}
+                onChangeText={(value) =>
+                  updateCategoryPageTile(selectedCategoryPageIndex, selectedCategoryPageTileIndex, "label", value)
+                }
+              />
+              <EditorField
+                label="Image URL"
+                value={selectedTile.image}
+                onChangeText={(value) =>
+                  updateCategoryPageTile(selectedCategoryPageIndex, selectedCategoryPageTileIndex, "image", value)
+                }
+                multiline
+              />
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <ActionButton label="Add Tile" icon="add-outline" ghost onPress={addCategoryPageTile} />
+                <ActionButton
+                  label="Remove"
+                  icon="trash-outline"
+                  tone={colors.danger}
+                  ghost
+                  disabled={tiles.length <= 1}
+                  onPress={() => removeCategoryPageTile(selectedCategoryPageTileIndex)}
+                />
+              </View>
+            </>
+          ) : (
+            <ActionButton label="Add Tile" icon="add-outline" ghost onPress={addCategoryPageTile} />
+          )}
+        </EasyEditorCard>
+
+        <ModernSettingGroup title="Layout">
+          <ModernSettingRow label="Product count">
+            <ModernNumberControl
+              value={selectedCategoryPage.productCount || 8}
+              min={1}
+              max={24}
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "productCount", value)}
+            />
+          </ModernSettingRow>
+          <ModernSettingRow label="Columns">
+            <ModernNumberControl
+              value={selectedCategoryPage.columns || 4}
+              min={1}
+              max={6}
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "columns", value)}
+            />
+          </ModernSettingRow>
+          <ModernSettingRow label="Mobile columns">
+            <ModernSegmented
+              value={`${selectedCategoryPage.mobileColumns || 2}` as "1" | "2"}
+              options={[
+                { label: "1", value: "1" },
+                { label: "2", value: "2" },
+              ]}
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "mobileColumns", Number(value))}
+            />
+          </ModernSettingRow>
+          <ModernSettingRow label="Gap">
+            <ModernNumberControl
+              value={selectedCategoryPage.horizontalGap ?? 8}
+              min={0}
+              max={48}
+              unit="px"
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "horizontalGap", value)}
+            />
+          </ModernSettingRow>
+          <ModernSettingRow label="Padding top">
+            <ModernNumberControl
+              value={selectedCategoryPage.paddingTop ?? 24}
+              min={0}
+              max={96}
+              unit="px"
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "paddingTop", value)}
+            />
+          </ModernSettingRow>
+          <ModernSettingRow label="Padding bottom">
+            <ModernNumberControl
+              value={selectedCategoryPage.paddingBottom ?? 48}
+              min={0}
+              max={120}
+              unit="px"
+              onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "paddingBottom", value)}
+            />
+          </ModernSettingRow>
+        </ModernSettingGroup>
+      </Panel>
+    );
+  };
+
+  const CategoryPageLivePreview = () => {
+    if (!selectedCategoryPage) {
+      return null;
+    }
+
+    const banners = selectedCategoryPage.banners?.length
+      ? selectedCategoryPage.banners
+      : [
+          {
+            id: "fallback-banner",
+            image: selectedCategoryPage.heroImage,
+            title: selectedCategoryPage.title,
+            subtitle: selectedCategoryPage.subtitle,
+            linkCategory: selectedCategoryPage.category,
+          },
+        ];
+    const tiles = selectedCategoryPage.tiles || [];
+    const previewProductCount = selectedCategoryPage.productCount || 8;
+    const previewHorizontalGap = selectedCategoryPage.horizontalGap ?? 8;
+    const previewVerticalGap = selectedCategoryPage.verticalGap ?? 24;
+    const previewPaddingTop = selectedCategoryPage.paddingTop ?? 24;
+    const previewPaddingBottom = selectedCategoryPage.paddingBottom ?? 48;
+    const previewTileSize = selectedCategoryPage.tileSize || 106;
+    const previewBannerHeight = selectedCategoryPage.bannerHeight || 247;
+    const previewAlignment = selectedCategoryPage.alignment || "left";
+
+    return (
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            borderBottomWidth: 1,
+            borderBottomColor: livePreviewColors.border,
+            paddingBottom: spacing.xs,
+            alignItems: "center",
+          }}
+        >
+          {categoryPageItems.map((page, index) => {
+            const active = page.id === selectedCategoryPage.id;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                key={page.id}
+                onPress={() => {
+                  setSelectedCategoryPageIndex(index);
+                  onActiveSectionChange("categoryPages");
+                }}
+                style={{
+                  width: isPreviewDesktop ? 82 : 72,
+                  alignItems: "center",
+                  paddingVertical: spacing.xs,
+                  borderBottomWidth: 3,
+                  borderBottomColor: active ? livePreviewColors.primary : "transparent",
+                }}
+              >
+                <View
+                  style={{
+                    width: 42,
+                    height: 36,
+                    borderRadius: 8,
+                    backgroundColor: active ? `${page.accent}18` : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name={page.icon as IconName} size={22} color={active ? page.accent : livePreviewColors.text} />
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: livePreviewColors.text,
+                    fontSize: 12,
+                    fontWeight: active ? "900" : "700",
+                    textAlign: "center",
+                    width: "100%",
+                  }}
+                >
+                  {page.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg }}>
+          {banners.map((banner, index) => (
+            <Pressable
+              accessibilityRole="button"
+              key={banner.id}
+              onPress={() => {
+                setSelectedCategoryPageBannerIndex(index);
+                onActiveSectionChange("categoryPages");
+              }}
+              style={{
+                width: isPreviewDesktop ? (index === 1 ? 400 : 360) : 292,
+                height: isPreviewDesktop ? previewBannerHeight * 0.85 : Math.max(120, previewBannerHeight * 0.6),
+                borderRadius: 14,
+                overflow: "hidden",
+                marginRight: spacing.xl,
+                backgroundColor: livePreviewColors.surface,
+                borderWidth: selectedCategoryPageBannerIndex === index ? 2 : 1,
+                borderColor: selectedCategoryPageBannerIndex === index ? "#1688F0" : livePreviewColors.border,
+              }}
+            >
+              <Image source={{ uri: banner.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {banners.length > 1 ? (
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: spacing.xs }}>
+            {banners.map((banner, index) => (
+              <View
+                key={`dot-${banner.id}`}
+                style={{
+                  width: selectedCategoryPageBannerIndex === index ? 18 : 6,
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: selectedCategoryPageBannerIndex === index ? "#9CA3AF" : "#D1D5DB",
+                }}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {tiles.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xl }}>
+            {tiles.map((tile, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={tile.id}
+                onPress={() => {
+                  setSelectedCategoryPageTileIndex(index);
+                  onActiveSectionChange("categoryPages");
+                }}
+                style={{
+                  width: isPreviewDesktop ? previewTileSize : Math.max(68, previewTileSize - 20),
+                  marginRight: previewHorizontalGap,
+                  alignItems: "center",
+                  borderWidth: selectedCategoryPageTileIndex === index ? 2 : 0,
+                  borderColor: "#1688F0",
+                  borderRadius: 12,
+                  padding: selectedCategoryPageTileIndex === index ? 3 : 0,
+                }}
+              >
+                <View
+                  style={{
+                    width: isPreviewDesktop ? previewTileSize - 8 : Math.max(62, previewTileSize - 28),
+                    height: isPreviewDesktop ? previewTileSize - 8 : Math.max(62, previewTileSize - 28),
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    backgroundColor: "#FFF7C7",
+                  }}
+                >
+                  <Image source={{ uri: tile.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={{ color: livePreviewColors.text, fontSize: 11, fontWeight: "800", marginTop: spacing.xs, textAlign: "center" }}
+                >
+                  {tile.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onActiveSectionChange("categoryPages")}
+          style={{
+            marginTop: previewVerticalGap,
+            borderRadius: 16,
+            backgroundColor: selectedCategoryPage.highlightBackground || "#F2FF00",
+            paddingTop: previewPaddingTop,
+            paddingBottom: previewPaddingBottom,
+            paddingHorizontal: spacing.md,
+            borderWidth: activeSection === "categoryPages" ? 2 : 1,
+            borderColor: activeSection === "categoryPages" ? "#1688F0" : "transparent",
+          }}
+        >
+          <Text
+            style={{
+              color: livePreviewColors.text,
+              fontSize: selectedCategoryPage.typographyPreset === "Heading 4" ? 28 : 22,
+              fontWeight: "900",
+              marginBottom: spacing.md,
+              textAlign: previewAlignment,
+            }}
+          >
+            {selectedCategoryPage.highlightTitle || selectedCategoryPage.featuredTitle}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {categoryPreviewProducts.slice(0, previewProductCount).map((product) => (
+              <View
+                key={product.title}
+                style={{
+                  width: isPreviewDesktop
+                    ? Math.max(132, 720 / Math.max(selectedCategoryPage.columns || 4, 1))
+                    : Math.max(132, 300 / Math.max(selectedCategoryPage.mobileColumns || 2, 1)),
+                  borderRadius: 10,
+                  backgroundColor: colors.white,
+                  padding: spacing.xs,
+                  marginRight: previewHorizontalGap,
+                  borderWidth: 1,
+                  borderColor: "rgba(15,23,42,0.08)",
+                }}
+              >
+                <View style={{ height: isPreviewDesktop ? 160 : 132, borderRadius: 8, overflow: "hidden", backgroundColor: "#EEF2F7" }}>
+                  <Image source={{ uri: product.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                </View>
+                <Text style={{ color: livePreviewColors.muted, marginTop: spacing.sm, fontSize: 12 }} numberOfLines={1}>
+                  {product.title}
+                </Text>
+                <Text style={{ color: livePreviewColors.text, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>
+                  {selectedCategoryPage.productCardCta || "View Store"}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </View>
+    );
+  };
+
+  const renderActiveFields = () => (
     <>
       {activeSection === "pageLabels" ? (
         <>
@@ -1142,6 +2304,454 @@ const StoreEditorPanel = ({
           <EditorField label="Deals Title" value={draft.pages.dealsTitle} onChangeText={(value) => updatePages("dealsTitle", value)} />
           <EditorField label="Deals Subtitle" value={draft.pages.dealsSubtitle} onChangeText={(value) => updatePages("dealsSubtitle", value)} multiline />
         </>
+      ) : null}
+
+      {activeSection === "categoryPages" ? renderCategoryPageEasyEditor() : null}
+
+      {false && activeSection === "categoryPages" ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          {selectedCategoryPage ? (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>
+                Editing {selectedCategoryPage.label} Page
+              </Text>
+              <ModernSettingGroup title="Collection">
+                <ModernSettingRow label="Collection">
+                  <ModernSelect value={selectedCategoryPage.label} icon="pricetag-outline" />
+                </ModernSettingRow>
+                <ModernSettingRow label="Type">
+                  <ModernSelect value="Grid" />
+                </ModernSettingRow>
+                <ModernSettingRow label="Carousel on mobile">
+                  <ModernToggle
+                    value={selectedCategoryPage.carouselOnMobile ?? true}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "carouselOnMobile", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Product count">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.productCount || 8}
+                    min={1}
+                    max={24}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "productCount", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Columns">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.columns || 4}
+                    min={1}
+                    max={6}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "columns", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Mobile columns">
+                  <ModernSegmented
+                    value={`${selectedCategoryPage.mobileColumns || 2}` as "1" | "2"}
+                    options={[
+                      { label: "1", value: "1" },
+                      { label: "2", value: "2" },
+                    ]}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "mobileColumns", Number(value))}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Horizontal gap">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.horizontalGap ?? 8}
+                    min={0}
+                    max={48}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "horizontalGap", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Vertical gap">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.verticalGap ?? 24}
+                    min={0}
+                    max={80}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "verticalGap", value)}
+                  />
+                </ModernSettingRow>
+              </ModernSettingGroup>
+
+              <ModernSettingGroup title="Section layout">
+                <ModernSettingRow label="Width">
+                  <ModernSegmented
+                    value={(selectedCategoryPage.sectionWidth || "page") as "page" | "full"}
+                    options={[
+                      { label: "Page", value: "page" },
+                      { label: "Full", value: "full" },
+                    ]}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "sectionWidth", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Alignment">
+                  <ModernSegmented
+                    value={(selectedCategoryPage.alignment || "left") as "left" | "center" | "right"}
+                    options={[
+                      { label: "Left", value: "left" },
+                      { label: "Center", value: "center" },
+                      { label: "Right", value: "right" },
+                    ]}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "alignment", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Tile size">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.tileSize || 106}
+                    min={64}
+                    max={160}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "tileSize", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Banner height">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.bannerHeight || 247}
+                    min={120}
+                    max={360}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "bannerHeight", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Color scheme">
+                  <ModernSelect value={selectedCategoryPage.colorScheme || "Scheme 1"} icon="text-outline" />
+                </ModernSettingRow>
+              </ModernSettingGroup>
+
+              <ModernSettingGroup title="Padding">
+                <ModernSettingRow label="Top">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.paddingTop ?? 24}
+                    min={0}
+                    max={96}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "paddingTop", value)}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Bottom">
+                  <ModernNumberControl
+                    value={selectedCategoryPage.paddingBottom ?? 48}
+                    min={0}
+                    max={120}
+                    unit="px"
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "paddingBottom", value)}
+                  />
+                </ModernSettingRow>
+              </ModernSettingGroup>
+
+              <ModernSettingGroup title="Typography">
+                <ModernSettingRow label="Preset">
+                  <ModernSelect value={selectedCategoryPage.typographyPreset || "Heading 6"} />
+                </ModernSettingRow>
+                <ModernSettingRow label="Width">
+                  <ModernSegmented
+                    value="fill"
+                    options={[
+                      { label: "Fit", value: "fit" },
+                      { label: "Fill", value: "fill" },
+                    ]}
+                    onChange={() => undefined}
+                  />
+                </ModernSettingRow>
+                <ModernSettingRow label="Alignment">
+                  <ModernSegmented
+                    value={(selectedCategoryPage.alignment || "left") as "left" | "center" | "right"}
+                    options={[
+                      { label: "", value: "left", icon: "reorder-three-outline" },
+                      { label: "", value: "center", icon: "reorder-two-outline" },
+                      { label: "", value: "right", icon: "reorder-three-outline" },
+                    ]}
+                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "alignment", value)}
+                  />
+                </ModernSettingRow>
+              </ModernSettingGroup>
+
+              <EditorField
+                label="Navigation Label"
+                value={selectedCategoryPage.label}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "label", value)}
+              />
+              <EditorField
+                label="Product Category Filter"
+                value={selectedCategoryPage.category}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "category", value)}
+              />
+              <EditorField
+                label="Page Title"
+                value={selectedCategoryPage.title}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "title", value)}
+              />
+              <EditorField
+                label="Page Subtitle"
+                value={selectedCategoryPage.subtitle}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "subtitle", value)}
+                multiline
+              />
+              <EditorField
+                label="Hero Image URL"
+                value={selectedCategoryPage.heroImage}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "heroImage", value)}
+                multiline
+              />
+              <EditorField
+                label="Badge"
+                value={selectedCategoryPage.badge}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "badge", value)}
+              />
+              <EditorField
+                label="Accent Color"
+                value={selectedCategoryPage.accent}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "accent", value)}
+              />
+              <EditorField
+                label="Icon (Ionicons)"
+                value={selectedCategoryPage.icon}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "icon", value)}
+              />
+              <EditorField
+                label="Featured Section Title"
+                value={selectedCategoryPage.featuredTitle}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "featuredTitle", value)}
+              />
+              <EditorField
+                label="Deals Section Title"
+                value={selectedCategoryPage.dealTitle}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "dealTitle", value)}
+              />
+              <EditorField
+                label="Empty State Title"
+                value={selectedCategoryPage.emptyTitle}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "emptyTitle", value)}
+              />
+              <EditorField
+                label="Empty State Subtitle"
+                value={selectedCategoryPage.emptySubtitle}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "emptySubtitle", value)}
+                multiline
+              />
+              <EditorField
+                label="Highlight Section Title"
+                value={selectedCategoryPage.highlightTitle || ""}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "highlightTitle", value)}
+              />
+              <EditorField
+                label="Highlight Background Color"
+                value={selectedCategoryPage.highlightBackground || ""}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "highlightBackground", value)}
+              />
+              <EditorField
+                label="Product Card Button Text"
+                value={selectedCategoryPage.productCardCta || ""}
+                onChangeText={(value) => updateCategoryPage(selectedCategoryPageIndex, "productCardCta", value)}
+              />
+              <View style={{ gap: spacing.sm }}>
+                <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>Top Banner Slider</Text>
+                {(selectedCategoryPage.banners || []).map((banner, bannerIndex) => (
+                  <Panel key={banner.id} style={{ padding: spacing.sm, gap: spacing.sm }}>
+                    <EditorField
+                      label="Banner Title"
+                      value={banner.title}
+                      onChangeText={(value) => updateCategoryPageBanner(selectedCategoryPageIndex, bannerIndex, "title", value)}
+                    />
+                    <EditorField
+                      label="Banner Subtitle"
+                      value={banner.subtitle}
+                      onChangeText={(value) => updateCategoryPageBanner(selectedCategoryPageIndex, bannerIndex, "subtitle", value)}
+                    />
+                    <EditorField
+                      label="Banner Image URL"
+                      value={banner.image}
+                      onChangeText={(value) => updateCategoryPageBanner(selectedCategoryPageIndex, bannerIndex, "image", value)}
+                      multiline
+                    />
+                    <EditorField
+                      label="Link Category"
+                      value={banner.linkCategory}
+                      onChangeText={(value) => updateCategoryPageBanner(selectedCategoryPageIndex, bannerIndex, "linkCategory", value)}
+                    />
+                    <ActionButton
+                      label="Remove Banner"
+                      icon="trash-outline"
+                      tone={colors.danger}
+                      ghost
+                      onPress={() => removeCategoryPageBanner(bannerIndex)}
+                    />
+                  </Panel>
+                ))}
+                <ActionButton label="Add Banner" icon="add-outline" ghost onPress={addCategoryPageBanner} />
+              </View>
+              <View style={{ gap: spacing.sm }}>
+                <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>Small Image Tiles</Text>
+                {(selectedCategoryPage.tiles || []).map((tile, tileIndex) => (
+                  <Panel key={tile.id} style={{ padding: spacing.sm, gap: spacing.sm }}>
+                    <EditorField
+                      label="Tile Label"
+                      value={tile.label}
+                      onChangeText={(value) => updateCategoryPageTile(selectedCategoryPageIndex, tileIndex, "label", value)}
+                    />
+                    <EditorField
+                      label="Tile Image URL"
+                      value={tile.image}
+                      onChangeText={(value) => updateCategoryPageTile(selectedCategoryPageIndex, tileIndex, "image", value)}
+                      multiline
+                    />
+                    <EditorField
+                      label="Link Category"
+                      value={tile.linkCategory}
+                      onChangeText={(value) => updateCategoryPageTile(selectedCategoryPageIndex, tileIndex, "linkCategory", value)}
+                    />
+                    <ActionButton
+                      label="Remove Tile"
+                      icon="trash-outline"
+                      tone={colors.danger}
+                      ghost
+                      onPress={() => removeCategoryPageTile(tileIndex)}
+                    />
+                  </Panel>
+                ))}
+                <ActionButton label="Add Tile" icon="add-outline" ghost onPress={addCategoryPageTile} />
+              </View>
+              <ActionButton label="Restore Default Pages" icon="refresh-outline" ghost onPress={restoreCategoryPages} />
+            </>
+          ) : (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Category Pages Removed</Text>
+              <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 18 }}>
+                Restore the default category pages to edit each top navigation page again.
+              </Text>
+              <ActionButton label="Restore Category Pages" icon="refresh-outline" onPress={restoreCategoryPages} />
+            </>
+          )}
+        </Panel>
+      ) : null}
+
+      {activeSection === "sitePages" ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          {selectedSitePage ? (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>
+                Editing {selectedSitePage.label} Page
+              </Text>
+              <EditorField
+                label="Page Label"
+                value={selectedSitePage.label}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "label", value)}
+              />
+              <EditorField
+                label="Route"
+                value={selectedSitePage.route}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "route", value)}
+              />
+              <EditorField
+                label="Page Title"
+                value={selectedSitePage.title}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "title", value)}
+              />
+              <EditorField
+                label="Page Subtitle"
+                value={selectedSitePage.subtitle}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "subtitle", value)}
+                multiline
+              />
+              <EditorField
+                label="Hero Image URL"
+                value={selectedSitePage.heroImage}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "heroImage", value)}
+                multiline
+              />
+              <EditorField
+                label="Badge"
+                value={selectedSitePage.badge}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "badge", value)}
+              />
+              <EditorField
+                label="Accent Color"
+                value={selectedSitePage.accent}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "accent", value)}
+              />
+              <EditorField
+                label="Section Title"
+                value={selectedSitePage.sectionTitle}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "sectionTitle", value)}
+              />
+              <EditorField
+                label="Body Title"
+                value={selectedSitePage.bodyTitle}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "bodyTitle", value)}
+              />
+              <EditorField
+                label="Body Text"
+                value={selectedSitePage.bodyText}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "bodyText", value)}
+                multiline
+              />
+              <EditorField
+                label="Search Placeholder"
+                value={selectedSitePage.searchPlaceholder}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "searchPlaceholder", value)}
+              />
+              <EditorField
+                label="Empty State Title"
+                value={selectedSitePage.emptyTitle}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "emptyTitle", value)}
+              />
+              <EditorField
+                label="Empty State Subtitle"
+                value={selectedSitePage.emptySubtitle}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "emptySubtitle", value)}
+                multiline
+              />
+              <EditorField
+                label="Empty State Button"
+                value={selectedSitePage.emptyButtonLabel}
+                onChangeText={(value) => updateSitePage(selectedSitePageIndex, "emptyButtonLabel", value)}
+              />
+              <View style={{ gap: spacing.sm }}>
+                <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>Page Cards</Text>
+                {selectedSitePage.cards.map((card, cardIndex) => (
+                  <Panel key={card.id} style={{ padding: spacing.sm, gap: spacing.sm }}>
+                    <EditorField
+                      label="Card Title"
+                      value={card.title}
+                      onChangeText={(value) => updateSitePageCard(selectedSitePageIndex, cardIndex, "title", value)}
+                    />
+                    <EditorField
+                      label="Card Description"
+                      value={card.description}
+                      onChangeText={(value) => updateSitePageCard(selectedSitePageIndex, cardIndex, "description", value)}
+                      multiline
+                    />
+                    <EditorField
+                      label="Card Icon"
+                      value={card.icon}
+                      onChangeText={(value) => updateSitePageCard(selectedSitePageIndex, cardIndex, "icon", value)}
+                    />
+                    <ActionButton
+                      label="Remove Card"
+                      icon="trash-outline"
+                      tone={colors.danger}
+                      ghost
+                      onPress={() => removeSitePageCard(cardIndex)}
+                    />
+                  </Panel>
+                ))}
+              </View>
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <ActionButton label="Add Card" icon="add-outline" ghost onPress={addSitePageCard} />
+                <ActionButton label="Restore Pages" icon="refresh-outline" ghost onPress={restoreSitePages} />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Page Content Removed</Text>
+              <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 18 }}>
+                Restore the default page content to edit buyer pages again.
+              </Text>
+              <ActionButton label="Restore Pages" icon="refresh-outline" onPress={restoreSitePages} />
+            </>
+          )}
+        </Panel>
       ) : null}
 
       {activeSection === "hero" ? (
@@ -1198,6 +2808,32 @@ const StoreEditorPanel = ({
             Add a promo card to show this section in the live preview.
           </Text>
           <ActionButton label="Add Promo Card" icon="add-outline" onPress={addPromo} />
+        </Panel>
+      ) : null}
+
+      {activeSection === "brandSpotlight" && selectedBrand ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Editing Brand Card {selectedBrandIndex + 1}</Text>
+          <EditorField label="Brand Name" value={selectedBrand.brand} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "brand", value)} />
+          <EditorField label="Offer Title" value={selectedBrand.title} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "title", value)} />
+          <EditorField label="Subtitle" value={selectedBrand.subtitle} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "subtitle", value)} />
+          <EditorField label="Image URL" value={selectedBrand.image} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "image", value)} multiline />
+          <EditorField label="Category Route" value={selectedBrand.category} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "category", value)} />
+          <EditorField label="Badge" value={selectedBrand.badge || ""} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "badge", value)} />
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <ActionButton label="Add" icon="add-outline" ghost onPress={addBrandSpotlight} />
+            <ActionButton label="Remove" icon="trash-outline" tone={colors.danger} ghost onPress={removeBrandSpotlight} />
+          </View>
+        </Panel>
+      ) : null}
+
+      {activeSection === "brandSpotlight" && !selectedBrand ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Brands Spotlight Removed</Text>
+          <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 18 }}>
+            Add a brand card to show the spotlight row on the buyer home page.
+          </Text>
+          <ActionButton label="Add Brand Card" icon="add-outline" onPress={addBrandSpotlight} />
         </Panel>
       ) : null}
 
@@ -1394,17 +3030,31 @@ const StoreEditorPanel = ({
                   borderRadius: 999,
                   paddingHorizontal: spacing.sm,
                   paddingVertical: 3,
-                  backgroundColor: isDirty ? "#FFF4E5" : "#DFF7E8",
+                  backgroundColor: errorCount > 0 ? "#FEE2E2" : isDirty ? "#FFF4E5" : "#DFF7E8",
                 }}
               >
-                <Text style={{ color: isDirty ? "#B45309" : "#15803D", fontSize: 11, fontWeight: "900" }}>
-                  {isDirty ? "Draft" : "Active"}
+                <Text style={{ color: errorCount > 0 ? "#B91C1C" : isDirty ? "#B45309" : "#15803D", fontSize: 11, fontWeight: "900" }}>
+                  {errorCount > 0 ? "Needs Fix" : isDirty ? "Draft" : "Active"}
                 </Text>
               </View>
+              {warningCount > 0 ? (
+                <View
+                  style={{
+                    borderRadius: 999,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 3,
+                    backgroundColor: "#FFF7ED",
+                  }}
+                >
+                  <Text style={{ color: "#C2410C", fontSize: 11, fontWeight: "900" }}>
+                    {warningCount} Check{warningCount === 1 ? "" : "s"}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
               <Ionicons name="home-outline" size={15} color={adminColors.ink} />
-              <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "800" }}>Home page</Text>
+              <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "800" }}>{previewPageLabel}</Text>
             </View>
           </View>
         ) : null}
@@ -1444,7 +3094,12 @@ const StoreEditorPanel = ({
             })}
           </View>
           <IconButton icon="arrow-undo-outline" backgroundColor="#F6F7F9" onPress={onReset} />
-          <IconButton icon="arrow-redo-outline" backgroundColor="#F6F7F9" onPress={onPublish} disabled={!isDirty || isPublishing} />
+          <IconButton
+            icon="arrow-redo-outline"
+            backgroundColor="#F6F7F9"
+            onPress={onPublish}
+            disabled={!isDirty || isPublishing || errorCount > 0}
+          />
           <IconButton
             icon="ellipsis-horizontal"
             backgroundColor={colors.white}
@@ -1452,20 +3107,20 @@ const StoreEditorPanel = ({
           />
           <Pressable
             accessibilityRole="button"
-            disabled={!isDirty || isPublishing}
-            onPress={isDirty ? onPublish : undefined}
+            disabled={!isDirty || isPublishing || errorCount > 0}
+            onPress={isDirty && errorCount === 0 ? onPublish : undefined}
             style={{
               minHeight: 32,
               borderRadius: 8,
               paddingHorizontal: spacing.md,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: isDirty ? "#111827" : "#D1D5DB",
+              backgroundColor: errorCount > 0 ? colors.danger : isDirty ? "#111827" : "#D1D5DB",
               opacity: isPublishing ? 0.6 : 1,
             }}
           >
             <Text style={{ color: colors.white, fontWeight: "900", fontSize: 12 }}>
-              {isPublishing ? "Saving" : "Save"}
+              {errorCount > 0 ? "Fix" : isPublishing ? "Saving" : "Save"}
             </Text>
           </Pressable>
         </View>
@@ -1525,7 +3180,7 @@ const StoreEditorPanel = ({
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
             <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}>
-              <Text style={{ color: adminColors.ink, fontSize: 14, fontWeight: "900" }}>Home page</Text>
+              <Text style={{ color: adminColors.ink, fontSize: 14, fontWeight: "900" }}>{previewPageLabel}</Text>
             </View>
 
             <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line, padding: spacing.md, gap: spacing.sm }}>
@@ -1635,6 +3290,10 @@ const StoreEditorPanel = ({
               </View>
 
               <View style={{ padding: canvasPadding }}>
+                {activeSection === "categoryPages" ? (
+                  <CategoryPageLivePreview />
+                ) : (
+                <>
                 {hero && showHeroPreview ? (
                   <View style={{ order: getHomeSectionOrder("hero") } as ViewStyle}>
                     <Pressable
@@ -1828,6 +3487,83 @@ const StoreEditorPanel = ({
                       })}
                     </View>
                   </View>
+                </Pressable>
+                ) : null}
+
+                {brandPreviewItems.length > 0 && showBrandPreview ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => onActiveSectionChange("brandSpotlight")}
+                  style={{ marginTop: spacing.xl, order: getHomeSectionOrder("brandSpotlight"), ...selectFrame("brandSpotlight") } as ViewStyle}
+                >
+                  <Text style={{ color: livePreviewColors.text, fontSize: 24, fontWeight: "900", marginBottom: spacing.md }}>
+                    Brands in Spotlight
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {brandPreviewItems.map((item, index) => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={item.id}
+                        onPress={() => {
+                          setSelectedBrandIndex(index);
+                          onActiveSectionChange("brandSpotlight");
+                        }}
+                        style={{
+                          width: isPreviewDesktop ? 260 : 210,
+                          marginRight: spacing.lg,
+                          borderRadius: 12,
+                          borderWidth: activeSection === "brandSpotlight" && selectedBrandIndex === index ? 2 : 0,
+                          borderColor: "#1688F0",
+                          overflow: "hidden",
+                          backgroundColor: livePreviewColors.surface,
+                        }}
+                      >
+                        <View style={{ height: isPreviewDesktop ? 255 : 205, borderRadius: 12, overflow: "hidden", backgroundColor: "#E8F0F6" }}>
+                          <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                          <View style={{ position: "absolute", top: spacing.sm, left: spacing.sm }}>
+                            <Text style={{ color: colors.white, fontSize: 20, fontWeight: "900" }}>{item.brand}</Text>
+                          </View>
+                          {item.badge ? (
+                            <View
+                              style={{
+                                position: "absolute",
+                                top: spacing.sm,
+                                right: spacing.sm,
+                                borderRadius: 5,
+                                backgroundColor: "rgba(255,255,255,0.58)",
+                                paddingHorizontal: spacing.xs,
+                                paddingVertical: 3,
+                              }}
+                            >
+                              <Text style={{ color: colors.white, fontSize: 11, fontWeight: "900" }}>{item.badge}</Text>
+                            </View>
+                          ) : null}
+                          <View
+                            style={{
+                              position: "absolute",
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              minHeight: 40,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#F4FF00",
+                            }}
+                          >
+                            <Text style={{ color: "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
+                              {item.title}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text
+                          style={{ color: livePreviewColors.text, fontSize: 20, textAlign: "center", marginTop: spacing.xs, fontWeight: "500" }}
+                          numberOfLines={1}
+                        >
+                          {item.subtitle}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </Pressable>
                 ) : null}
 
@@ -2061,6 +3797,8 @@ const StoreEditorPanel = ({
                     </View>
                   </View>
                 ))}
+                </>
+                )}
               </View>
             </View>
           </ScrollView>
@@ -2244,6 +3982,81 @@ const StoreEditorPanel = ({
               </ScrollView>
             ) : null}
 
+            {activeSection === "categoryPages" ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {categoryPageItems.map((item, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => setSelectedCategoryPageIndex(index)}
+                    style={{
+                      width: 92,
+                      borderRadius: 8,
+                      borderWidth: selectedCategoryPageIndex === index ? 2 : 1,
+                      borderColor: selectedCategoryPageIndex === index ? "#1688F0" : adminColors.line,
+                      overflow: "hidden",
+                      backgroundColor: colors.white,
+                    }}
+                  >
+                    <Image source={{ uri: item.heroImage }} resizeMode="cover" style={{ width: "100%", height: 48 }} />
+                    <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 6 }} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {activeSection === "sitePages" ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {sitePageItems.map((item, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => setSelectedSitePageIndex(index)}
+                    style={{
+                      width: 92,
+                      borderRadius: 8,
+                      borderWidth: selectedSitePageIndex === index ? 2 : 1,
+                      borderColor: selectedSitePageIndex === index ? "#1688F0" : adminColors.line,
+                      overflow: "hidden",
+                      backgroundColor: colors.white,
+                    }}
+                  >
+                    <Image source={{ uri: item.heroImage }} resizeMode="cover" style={{ width: "100%", height: 48 }} />
+                    <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 6 }} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {activeSection === "brandSpotlight" ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {brandItems.map((item, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => setSelectedBrandIndex(index)}
+                    style={{
+                      width: 86,
+                      borderRadius: 8,
+                      borderWidth: selectedBrandIndex === index ? 2 : 1,
+                      borderColor: selectedBrandIndex === index ? "#1688F0" : adminColors.line,
+                      overflow: "hidden",
+                      backgroundColor: colors.white,
+                    }}
+                  >
+                    <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: 50 }} />
+                    <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 6 }} numberOfLines={1}>
+                      {item.brand}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
             {activeSection === "mediaShowcase" ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
                 {mediaItems.map((item, index) => (
@@ -2346,100 +4159,70 @@ const StoreEditorPanel = ({
 
           <InspectorGroup title="Content">
             <View style={{ borderLeftWidth: 3, borderLeftColor: selectedAccent, paddingLeft: spacing.md, gap: spacing.md }}>
-              <RenderActiveFields />
+              {renderActiveFields()}
             </View>
           </InspectorGroup>
 
-          <InspectorGroup title="Selector">
-            <View
-              style={{
-                height: 36,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: adminColors.line,
-                backgroundColor: "#FAFBFC",
-                paddingHorizontal: spacing.md,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
-              }}
-            >
-              <Ionicons name="code-slash-outline" size={14} color={adminColors.muted} />
-              <Text style={{ color: adminColors.muted, fontSize: 12 }} numberOfLines={1}>
-                Select a class or tag
-              </Text>
+          <InspectorGroup title="Store Health">
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <NumberBox value={`${visibleHomeSectionCount}`} label="Visible" />
+              <NumberBox value={`${totalEditableItems}`} label="Items" />
             </View>
-          </InspectorGroup>
-
-          <InspectorGroup title="Layout">
-            <View style={{ flexDirection: "row", gap: 4 }}>
-              <InspectorPill label="Block" active />
-              <InspectorPill label="Flex" />
-              <InspectorPill label="Grid" active={activeSection === "promo"} />
-              <InspectorPill label="None" />
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <NumberBox value={`${warningCount}`} label="Checks" />
+              <NumberBox value={isDirty ? "Draft" : "Live"} label="State" />
             </View>
-          </InspectorGroup>
-
-          <InspectorGroup title="Spacing">
-            <View
-              style={{
-                height: 124,
-                borderWidth: 1,
-                borderStyle: "dashed",
-                borderColor: "#D9DEE6",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+            {issues.length > 0 ? (
+              <View style={{ gap: spacing.sm }}>
+                {issues.slice(0, 5).map((issue, index) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={`${issue.label}-${index}`}
+                    onPress={() => issue.section && onActiveSectionChange(issue.section)}
+                    style={{
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: issue.type === "error" ? "#FECACA" : "#FED7AA",
+                      backgroundColor: issue.type === "error" ? "#FEF2F2" : "#FFF7ED",
+                      padding: spacing.sm,
+                      flexDirection: "row",
+                      gap: spacing.sm,
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <Ionicons
+                      name={issue.type === "error" ? "alert-circle-outline" : "warning-outline"}
+                      size={15}
+                      color={issue.type === "error" ? colors.danger : colors.accent}
+                    />
+                    <Text style={{ flex: 1, color: adminColors.ink, fontSize: 11, fontWeight: "800", lineHeight: 16 }}>
+                      {issue.label}
+                    </Text>
+                  </Pressable>
+                ))}
+                {issues.length > 5 ? (
+                  <Text style={{ color: adminColors.muted, fontSize: 11, fontWeight: "800" }}>
+                    +{issues.length - 5} more checks
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
               <View
                 style={{
-                  width: 150,
-                  height: 70,
-                  borderWidth: 2,
-                  borderColor: "#1688F0",
-                  borderRadius: 4,
+                  borderRadius: 8,
+                  backgroundColor: adminColors.greenSoft,
+                  padding: spacing.sm,
+                  flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: spacing.sm,
                 }}
               >
-                <View style={{ width: 38, height: 28, borderRadius: 4, backgroundColor: "#1688F0", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="link-outline" size={16} color={colors.white} />
-                </View>
-                <Text style={{ position: "absolute", top: -20, color: adminColors.ink, fontSize: 10, fontWeight: "900" }}>24</Text>
-                <Text style={{ position: "absolute", left: -24, color: adminColors.ink, fontSize: 10, fontWeight: "900" }}>32</Text>
-                <Text style={{ position: "absolute", right: -24, color: adminColors.ink, fontSize: 10, fontWeight: "900" }}>32</Text>
-                <Text style={{ position: "absolute", bottom: -20, color: adminColors.ink, fontSize: 10, fontWeight: "900" }}>32</Text>
+                <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+                <Text style={{ color: colors.success, fontSize: 12, fontWeight: "900" }}>
+                  Store content is publish-ready.
+                </Text>
               </View>
-            </View>
-          </InspectorGroup>
-
-          <InspectorGroup title="Size">
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <NumberBox value="Auto" label="Width" />
-              <NumberBox value="Auto" label="Height" />
-            </View>
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <NumberBox value="0" label="Min W" />
-              <NumberBox value="0" label="Min H" />
-            </View>
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <NumberBox value="None" label="Max W" />
-              <NumberBox value="None" label="Max H" />
-            </View>
-          </InspectorGroup>
-
-          <InspectorGroup title="Typography">
-            <View style={{ flexDirection: "row", gap: 4 }}>
-              {["align-left", "align-center", "align-right", "reorder-four"].map((name, index) => (
-                <View key={name} style={{ flex: 1, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: index === 0 ? colors.white : "#F6F7F9", borderWidth: 1, borderColor: adminColors.line }}>
-                  <Ionicons name={`${name}-outline` as IconName} size={15} color={adminColors.muted} />
-                </View>
-              ))}
-            </View>
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <NumberBox value="Roboto" label="" />
-              <NumberBox value="20" label="px" />
-            </View>
+            )}
           </InspectorGroup>
 
         </ScrollView>
@@ -3894,8 +5677,10 @@ export default function AdminDashboardScreen() {
   const [editorDraft, setEditorDraft] =
     useState<BuyerPageContent>(defaultBuyerPageContent);
   const [editorDirty, setEditorDirty] = useState(false);
+  const editorDirtyRef = useRef(false);
   const [activeEditorSection, setActiveEditorSection] =
     useState<EditorSection>("hero");
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<StatusFilter>("all");
@@ -3911,6 +5696,10 @@ export default function AdminDashboardScreen() {
     users: true,
     walletTopUps: true,
   });
+
+  useEffect(() => {
+    editorDirtyRef.current = editorDirty;
+  }, [editorDirty]);
 
   useEffect(() => {
     const unsubscribeOrders = subscribeToAllOrders((value) => {
@@ -3931,8 +5720,10 @@ export default function AdminDashboardScreen() {
     });
     const unsubscribeBuyerPageContent = subscribeToBuyerPageContent((value) => {
       setBuyerPageContent(value);
-      setEditorDraft(value);
-      setEditorDirty(false);
+      if (!editorDirtyRef.current) {
+        setEditorDraft(value);
+        setEditorDirty(false);
+      }
     });
 
     return () => {
@@ -4072,6 +5863,7 @@ export default function AdminDashboardScreen() {
         ),
     [searchTerm, userRoleFilter, users]
   );
+  const editorIssues = useMemo(() => getEditorIssues(editorDraft), [editorDraft]);
 
   const isLoading =
     loading ||
@@ -4201,18 +5993,37 @@ export default function AdminDashboardScreen() {
 
   const handleEditorDraftChange = (content: BuyerPageContent) => {
     setEditorDraft(content);
+    editorDirtyRef.current = true;
     setEditorDirty(true);
   };
 
   const handlePublishBuyerPages = async () => {
-    await saveBuyerPageContent(editorDraft);
-    setBuyerPageContent(editorDraft);
+    const normalizedDraft = normalizeBuyerPageContent(editorDraft);
+    const issues = getEditorIssues(normalizedDraft);
+    const blockingIssue = issues.find((issue) => issue.type === "error");
+
+    if (blockingIssue) {
+      showToast("error", "Fix store content", blockingIssue.label);
+      return;
+    }
+
+    await saveBuyerPageContent(normalizedDraft);
+    setBuyerPageContent(normalizedDraft);
+    setEditorDraft(normalizedDraft);
+    editorDirtyRef.current = false;
     setEditorDirty(false);
-    showToast("success", "Store published", "Buyer pages now use the updated content.");
+    showToast(
+      "success",
+      "Store published",
+      issues.some((issue) => issue.type === "warning")
+        ? "Published with non-blocking checks still visible in Store Health."
+        : "Buyer pages now use the updated content."
+    );
   };
 
   const handleResetEditor = () => {
     setEditorDraft(buyerPageContent);
+    editorDirtyRef.current = false;
     setEditorDirty(false);
     showToast("info", "Editor reset", "Draft changes were restored from the live content.");
   };
@@ -4236,6 +6047,7 @@ export default function AdminDashboardScreen() {
   > = {
     hero: { label: "Hero", color: colors.primary, section: "hero" },
     promo: { label: "Promos", color: colors.accent, section: "promo" },
+    brandSpotlight: { label: "Brands", color: "#D4E500", section: "brandSpotlight" },
     mediaShowcase: { label: "Bestsellers", color: colors.teal, section: "mediaShowcase" },
     category: { label: "Categories", color: colors.success, section: "category" },
     lovedOnes: { label: "Loved Ones", color: colors.danger, section: "lovedOnes" },
@@ -4289,6 +6101,8 @@ export default function AdminDashboardScreen() {
         };
       }),
       { label: "Headings", active: activeEditorSection === "sections", color: colors.purple, onPress: () => setActiveEditorSection("sections") },
+      { label: "All Pages", active: activeEditorSection === "sitePages", color: colors.primary, onPress: () => setActiveEditorSection("sitePages") },
+      { label: "Category Pages", active: activeEditorSection === "categoryPages", color: colors.teal, onPress: () => setActiveEditorSection("categoryPages") },
       { label: "Pages", active: activeEditorSection === "pageLabels", color: colors.purple, onPress: () => setActiveEditorSection("pageLabels") },
     ],
     orders: [
@@ -4398,7 +6212,7 @@ export default function AdminDashboardScreen() {
             ...shadows.card,
           }}
         >
-          {isDesktop ? (
+          {isDesktop && sidebarVisible ? (
             <Sidebar
               activeView={activeView}
               onSelectView={handleSelectView}
@@ -4406,6 +6220,35 @@ export default function AdminDashboardScreen() {
               childrenByView={childrenByView}
               counts={counts}
             />
+          ) : null}
+
+          {isDesktop ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sidebarVisible ? "Hide admin sidebar" : "Show admin sidebar"}
+              onPress={() => setSidebarVisible((value) => !value)}
+              style={{
+                position: "absolute",
+                left: sidebarVisible ? 224 : 10,
+                top: 18,
+                zIndex: 80,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.white,
+                borderWidth: 1,
+                borderColor: adminColors.lineStrong,
+                alignItems: "center",
+                justifyContent: "center",
+                ...shadows.card,
+              }}
+            >
+              <Ionicons
+                name={sidebarVisible ? "chevron-back-outline" : "menu-outline"}
+                size={17}
+                color={adminColors.ink}
+              />
+            </Pressable>
           ) : null}
 
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -4495,6 +6338,7 @@ export default function AdminDashboardScreen() {
                   isDesktop={isDesktop}
                   isDirty={editorDirty}
                   busyKey={busyKey}
+                  issues={editorIssues}
                   onPublish={() => runAction("publish-buyer-pages", handlePublishBuyerPages)}
                   onReset={handleResetEditor}
                   onClose={() => handleSelectView("dashboard")}

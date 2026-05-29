@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
-import { defaultBuyerPageContent } from "../constants/buyerPageContent";
+import SmartImage from "../components/SmartImage";
+import { defaultBuyerEditablePages, defaultBuyerPageContent } from "../constants/buyerPageContent";
 import { colors, radius, spacing } from "../constants/theme";
 import { useAuth } from "../hooks/useAuth";
 import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../lib/firebaseApi";
@@ -20,6 +22,7 @@ export default function ProductsScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
+  const page = pageContent.editablePages?.find((item) => item.id === "products") || defaultBuyerEditablePages[1];
 
   useEffect(() => {
     const unsubscribe = subscribeToActiveProducts(setProducts);
@@ -72,12 +75,25 @@ export default function ProductsScreen() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
-              {pageContent.pages.productsTitle}
+              {page.title}
             </Text>
             <Text style={{ color: colors.muted, marginTop: 4 }}>
-              {pageContent.pages.productsSubtitle}
+              {page.subtitle}
             </Text>
           </View>
+        </View>
+
+        <View style={{ height: 210, borderRadius: radius.xl, overflow: "hidden", marginBottom: spacing.lg }}>
+          <SmartImage uri={page.heroImage} width="100%" height="100%" resizeMode="cover" />
+          <LinearGradient
+            colors={["rgba(3,7,18,0.12)", "rgba(3,7,18,0.78)"]}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, padding: spacing.lg, justifyContent: "flex-end" }}
+          >
+            <Text style={{ color: colors.white, fontWeight: "900", fontSize: 12 }}>{page.badge}</Text>
+            <Text style={{ color: colors.white, fontWeight: "900", fontSize: 26, marginTop: spacing.xs }}>
+              {page.sectionTitle}
+            </Text>
+          </LinearGradient>
         </View>
 
         <View
@@ -94,7 +110,7 @@ export default function ProductsScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search products..."
+            placeholder={page.searchPlaceholder || "Search products..."}
             placeholderTextColor={colors.muted}
             style={{ flex: 1, minHeight: 50, marginLeft: spacing.sm, color: colors.text }}
           />
@@ -103,9 +119,9 @@ export default function ProductsScreen() {
         {filteredProducts.length === 0 ? (
           <EmptyState
             icon="bag-handle-outline"
-            title="Products Coming Soon"
-            subtitle="New arrivals will appear here as sellers publish them."
-            buttonLabel="Back to Home"
+            title={page.emptyTitle}
+            subtitle={page.emptySubtitle}
+            buttonLabel={page.emptyButtonLabel}
             onPress={() => router.push("/")}
           />
         ) : (

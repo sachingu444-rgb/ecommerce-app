@@ -1,11 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
+import SmartImage from "../components/SmartImage";
+import { defaultBuyerEditablePages, defaultBuyerPageContent } from "../constants/buyerPageContent";
 import { colors, radius, spacing } from "../constants/theme";
+import { subscribeToBuyerPageContent } from "../lib/firebaseApi";
+import { BuyerPageContent } from "../types";
 
 export default function AboutScreen() {
   const router = useRouter();
+  const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
+  const page = pageContent.editablePages?.find((item) => item.id === "about") || defaultBuyerEditablePages[3];
+
+  useEffect(() => {
+    const unsubscribe = subscribeToBuyerPageContent(setPageContent);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -24,23 +37,38 @@ export default function AboutScreen() {
           >
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
-          <View>
-            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>About ShopApp</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>Marketplace shopping and selling in one app.</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>{page.title}</Text>
+            <Text style={{ color: colors.muted, marginTop: 4 }}>{page.subtitle}</Text>
           </View>
         </View>
 
+        <View style={{ height: 220, borderRadius: radius.xl, overflow: "hidden", marginBottom: spacing.lg }}>
+          <SmartImage uri={page.heroImage} width="100%" height="100%" resizeMode="cover" />
+          <LinearGradient
+            colors={["rgba(3,7,18,0.12)", "rgba(3,7,18,0.78)"]}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, padding: spacing.lg, justifyContent: "flex-end" }}
+          >
+            <Text style={{ color: colors.white, fontWeight: "900", fontSize: 12 }}>{page.badge}</Text>
+            <Text style={{ color: colors.white, fontWeight: "900", fontSize: 28, marginTop: spacing.xs }}>
+              {page.sectionTitle}
+            </Text>
+          </LinearGradient>
+        </View>
+
         <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.xl }}>
-          <Text style={{ fontSize: 32, fontWeight: "900", color: colors.primary }}>🛒 ShopApp</Text>
+          <Text style={{ fontSize: 32, fontWeight: "900", color: page.accent }}>{page.bodyTitle}</Text>
           <Text style={{ color: colors.muted, marginTop: spacing.md, lineHeight: 22 }}>
-            ShopApp brings together a buyer portal and seller portal in a single mobile experience.
-            Buyers can discover products, track orders and pay securely with Stripe, while sellers manage
-            inventory, fulfill orders and grow revenue through Firebase-powered tools.
+            {page.bodyText}
           </Text>
 
           <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-            <Text style={{ color: colors.text, fontWeight: "900" }}>Version 1.0.0</Text>
-            <Text style={{ color: colors.muted }}>Built with Expo Router, Firebase, Stripe and Zustand.</Text>
+            {page.cards.map((card) => (
+              <View key={card.id} style={{ gap: spacing.xs }}>
+                <Text style={{ color: colors.text, fontWeight: "900" }}>{card.title}</Text>
+                <Text style={{ color: colors.muted }}>{card.description}</Text>
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>

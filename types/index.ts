@@ -247,6 +247,16 @@ export interface BuyerLovedOneItem {
   category: string;
 }
 
+export interface BuyerBrandSpotlightItem {
+  id: string;
+  brand: string;
+  title: string;
+  subtitle: string;
+  image: string;
+  category: string;
+  badge?: string;
+}
+
 export interface BuyerMediaShowcaseItem {
   id: string;
   label: string;
@@ -261,13 +271,90 @@ export interface BuyerMediaShowcase {
   items: BuyerMediaShowcaseItem[];
 }
 
-export type BuyerHomeSectionKey = "hero" | "promo" | "category" | "mediaShowcase" | "lovedOnes";
+export interface BuyerCategoryPage {
+  id: string;
+  label: string;
+  category: string;
+  title: string;
+  subtitle: string;
+  heroImage: string;
+  badge: string;
+  accent: string;
+  icon: string;
+  featuredTitle: string;
+  dealTitle: string;
+  emptyTitle: string;
+  emptySubtitle: string;
+  banners?: BuyerCategoryPageBanner[];
+  tiles?: BuyerCategoryPageTile[];
+  highlightTitle?: string;
+  highlightBackground?: string;
+  productCardCta?: string;
+  productCount?: number;
+  columns?: number;
+  mobileColumns?: number;
+  horizontalGap?: number;
+  verticalGap?: number;
+  sectionWidth?: "page" | "full";
+  alignment?: "left" | "center" | "right";
+  paddingTop?: number;
+  paddingBottom?: number;
+  tileSize?: number;
+  bannerHeight?: number;
+  carouselOnMobile?: boolean;
+  colorScheme?: string;
+  typographyPreset?: string;
+}
+
+export interface BuyerCategoryPageBanner {
+  id: string;
+  image: string;
+  title: string;
+  subtitle: string;
+  linkCategory: string;
+}
+
+export interface BuyerCategoryPageTile {
+  id: string;
+  label: string;
+  image: string;
+  linkCategory: string;
+}
+
+export interface BuyerEditablePageCard {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface BuyerEditablePage {
+  id: string;
+  label: string;
+  route: string;
+  title: string;
+  subtitle: string;
+  heroImage: string;
+  badge: string;
+  accent: string;
+  sectionTitle: string;
+  bodyTitle: string;
+  bodyText: string;
+  searchPlaceholder: string;
+  emptyTitle: string;
+  emptySubtitle: string;
+  emptyButtonLabel: string;
+  cards: BuyerEditablePageCard[];
+}
+
+export type BuyerHomeSectionKey = "hero" | "promo" | "brandSpotlight" | "category" | "mediaShowcase" | "lovedOnes";
 
 export interface BuyerHomeContent {
   heroes: BuyerHeroItem[];
   promoGrid: BuyerPromoGridItem[];
   visualCategories: BuyerVisualCategoryItem[];
   lovedOnes: BuyerLovedOneItem[];
+  brandSpotlight: BuyerBrandSpotlightItem[];
   mediaShowcase: BuyerMediaShowcase;
   hiddenSections?: BuyerHomeSectionKey[];
   sectionOrder?: BuyerHomeSectionKey[];
@@ -291,5 +378,7 @@ export interface BuyerPageLabels {
 export interface BuyerPageContent {
   home: BuyerHomeContent;
   pages: BuyerPageLabels;
+  categoryPages: BuyerCategoryPage[];
+  editablePages: BuyerEditablePage[];
   updatedAt?: unknown;
 }

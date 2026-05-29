@@ -23,7 +23,7 @@ import DesktopSiteFooter from "../../components/DesktopSiteFooter";
 import DealCard from "../../components/DealCard";
 import ProductCard from "../../components/ProductCard";
 import SmartImage from "../../components/SmartImage";
-import { defaultBuyerPageContent, normalizeBuyerHomeSectionOrder } from "../../constants/buyerPageContent";
+import { defaultBuyerCategoryPages, defaultBuyerPageContent, normalizeBuyerHomeSectionOrder } from "../../constants/buyerPageContent";
 import { categoryList } from "../../constants/mockData";
 import { colors, radius, spacing } from "../../constants/theme";
 import { useAuth } from "../../hooks/useAuth";
@@ -31,7 +31,7 @@ import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../li
 import { showToast } from "../../lib/toast";
 import { getGreeting } from "../../lib/utils";
 import { useCartStore } from "../../store/cartStore";
-import { BuyerHomeSectionKey, BuyerMediaShowcaseItem, BuyerPageContent, Product } from "../../types";
+import { BuyerCategoryPage, BuyerHomeSectionKey, BuyerMediaShowcaseItem, BuyerPageContent, Product } from "../../types";
 
 type HeaderMenuKey = "login" | "more" | null;
 
@@ -1522,6 +1522,19 @@ export default function HomeTabScreen() {
   const [desktopCategoryCompact, setDesktopCategoryCompact] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
+  const desktopCategoryItems = useMemo<DesktopCategoryItem[]>(
+    () =>
+      (pageContent.categoryPages || defaultBuyerCategoryPages).map((item) => ({
+        id: item.id,
+        label: item.label,
+        category: item.category,
+        icon: item.icon as keyof typeof Ionicons.glyphMap,
+        color: item.accent,
+      })),
+    [pageContent.categoryPages]
+  );
+  const resolveCategoryPageId = (category: string) =>
+    desktopCategoryItems.find((item) => item.category === category)?.id || "for-you";
   const homeContent = pageContent.home;
   const hiddenHomeSections = homeContent.hiddenSections || [];
   const homeSectionOrder = normalizeBuyerHomeSectionOrder(homeContent.sectionOrder);
@@ -1546,6 +1559,7 @@ export default function HomeTabScreen() {
   );
   const visualCategoryItems = isHomeSectionHidden("category") ? [] : homeContent.visualCategories;
   const lovedOneItems = isHomeSectionHidden("lovedOnes") ? [] : homeContent.lovedOnes;
+  const brandSpotlightItems = isHomeSectionHidden("brandSpotlight") ? [] : homeContent.brandSpotlight;
   const activeHero =
     premiumHeroItems.length > 0 ? premiumHeroItems[bannerIndex % premiumHeroItems.length] : null;
   const homeCardPalette = useMemo(
@@ -2202,6 +2216,7 @@ export default function HomeTabScreen() {
                         closeOpenMenu();
                         setActiveDesktopCategoryId(item.id);
                         setActiveCategory(item.category);
+                        router.push({ pathname: "/category/[id]", params: { id: item.id } });
                       }}
                     />
                   ))}
@@ -2417,7 +2432,7 @@ export default function HomeTabScreen() {
                 parallaxOffset={scrollY}
                 onPress={() => {
                   setActiveCategory(activeHero.category);
-                  setActiveDesktopCategoryId(resolveDesktopCategoryId(activeHero.category));
+                  setActiveDesktopCategoryId(resolveCategoryPageId(activeHero.category));
                   router.push({ pathname: "/search", params: { category: activeHero.category } });
                 }}
                 isActive={true}
@@ -2451,11 +2466,112 @@ export default function HomeTabScreen() {
               isDesktop={isDesktopWeb}
               onItemPress={(item) => {
                 setActiveCategory(item.category);
-                setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                 router.push({ pathname: "/search", params: { category: item.category } });
               }}
             />
           </View>
+
+          {brandSpotlightItems.length > 0 ? (
+            <View style={{ order: getHomeSectionOrder("brandSpotlight") } as ViewStyle}>
+              <Text
+                style={{
+                  marginTop: spacing.lg,
+                  marginBottom: spacing.md,
+                  color: homeColors.text,
+                  fontSize: 24,
+                  fontWeight: "900",
+                }}
+              >
+                Brands in Spotlight
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {brandSpotlightItems.map((item) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => {
+                      setActiveCategory(item.category);
+                      setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                      router.push({ pathname: "/search", params: { category: item.category } });
+                    }}
+                    style={{
+                      width: isDesktopWeb ? 260 : 210,
+                      marginRight: spacing.lg,
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: isDesktopWeb ? 255 : 205,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        backgroundColor: homeColors.imageFallback,
+                      }}
+                    >
+                      <SmartImage uri={item.image} width="100%" height="100%" resizeMode="cover" />
+                      <Text
+                        style={{
+                          position: "absolute",
+                          top: spacing.sm,
+                          left: spacing.sm,
+                          color: colors.white,
+                          fontSize: 20,
+                          fontWeight: "900",
+                        }}
+                      >
+                        {item.brand}
+                      </Text>
+                      {item.badge ? (
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: spacing.sm,
+                            right: spacing.sm,
+                            borderRadius: 5,
+                            backgroundColor: "rgba(255,255,255,0.58)",
+                            paddingHorizontal: spacing.xs,
+                            paddingVertical: 3,
+                          }}
+                        >
+                          <Text style={{ color: colors.white, fontSize: 11, fontWeight: "900" }}>
+                            {item.badge}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          minHeight: 40,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#F4FF00",
+                        }}
+                      >
+                        <Text style={{ color: "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={{
+                        color: homeColors.text,
+                        fontSize: 20,
+                        textAlign: "center",
+                        marginTop: spacing.xs,
+                        fontWeight: "500",
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.subtitle}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
 
           {!isHomeSectionHidden("mediaShowcase") ? (
             <View style={{ order: getHomeSectionOrder("mediaShowcase") } as ViewStyle}>
@@ -2466,7 +2582,7 @@ export default function HomeTabScreen() {
                 isDesktop={isDesktopWeb}
                 onItemPress={(item) => {
                   setActiveCategory(item.category);
-                  setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                  setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                   router.push({ pathname: "/search", params: { category: item.category } });
                 }}
               />
@@ -2491,7 +2607,7 @@ export default function HomeTabScreen() {
                         palette={homeColors}
                         onPress={() => {
                           setActiveCategory(item.category);
-                          setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                          setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                         }}
                       />
                     ))}
@@ -2504,7 +2620,7 @@ export default function HomeTabScreen() {
                         palette={homeColors}
                         onPress={() => {
                           setActiveCategory(item.category);
-                          setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                          setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                         }}
                       />
                     ))}
@@ -2537,7 +2653,7 @@ export default function HomeTabScreen() {
                     palette={homeColors}
                     onPress={() => {
                       setActiveCategory(item.category);
-                      setActiveDesktopCategoryId(resolveDesktopCategoryId(item.category));
+                      setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                       router.push({ pathname: "/search", params: { category: item.category } });
                     }}
                   />
