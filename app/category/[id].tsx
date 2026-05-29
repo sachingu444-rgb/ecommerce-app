@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
+import { Platform, Pressable, SafeAreaView, ScrollView, Text, useWindowDimensions, View } from "react-native";
 
 import EmptyState from "../../components/EmptyState";
 import SmartImage from "../../components/SmartImage";
@@ -56,6 +56,7 @@ const CategoryProductTile = ({
 export default function BuyerCategoryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
+  const { width: windowWidth } = useWindowDimensions();
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryPages, setCategoryPages] = useState<BuyerCategoryPage[]>(defaultBuyerPageContent.categoryPages);
 
@@ -71,7 +72,20 @@ export default function BuyerCategoryScreen() {
   const verticalGap = categoryPage.verticalGap ?? 24;
   const tileSize = categoryPage.tileSize || 106;
   const bannerHeight = categoryPage.bannerHeight || 247;
-  const productWidth = Math.max(160, 900 / Math.max(categoryPage.columns || 4, 1));
+  const isDesktopWeb = Platform.OS === "web" && windowWidth >= 1080;
+  const contentHorizontalPadding = isDesktopWeb ? spacing.xl : spacing.lg;
+  const contentWidth = isDesktopWeb
+    ? Math.min(windowWidth - contentHorizontalPadding * 2, 1480)
+    : windowWidth - contentHorizontalPadding * 2;
+  const requestedColumns = isDesktopWeb
+    ? categoryPage.columns || 4
+    : categoryPage.mobileColumns || 2;
+  const productWidth = isDesktopWeb
+    ? Math.min(220, Math.max(160, (contentWidth - horizontalGap * (requestedColumns - 1)) / requestedColumns))
+    : Math.max(148, (contentWidth - horizontalGap * (requestedColumns - 1)) / requestedColumns);
+  const bannerWidth = isDesktopWeb
+    ? Math.min(506, Math.max(280, (contentWidth - spacing.xl * 2) / 3))
+    : Math.min(contentWidth, 506);
 
   useEffect(() => {
     const unsubscribe = subscribeToActiveProducts(setProducts);
@@ -96,72 +110,94 @@ export default function BuyerCategoryScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: spacing.lg,
+        <View
+          style={{
+            backgroundColor: colors.white,
             borderBottomWidth: 1,
             borderBottomColor: "#D9DDE3",
-            alignItems: "center",
           }}
         >
-          {categoryPages.map((page) => {
-            const active = page.id === categoryPage.id;
+          <View
+            style={{
+              width: "100%",
+              maxWidth: isDesktopWeb ? 1480 : undefined,
+              alignSelf: isDesktopWeb ? "center" : undefined,
+              paddingHorizontal: contentHorizontalPadding,
+            }}
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                alignItems: "center",
+              }}
+            >
+              {categoryPages.map((page) => {
+                const active = page.id === categoryPage.id;
 
-            return (
-              <Pressable
-                key={page.id}
-                onPress={() => router.push({ pathname: "/category/[id]", params: { id: page.id } })}
-                style={{
-                  width: 92,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  paddingTop: spacing.sm,
-                  paddingBottom: spacing.xs,
-                  borderBottomWidth: 3,
-                  borderBottomColor: active ? colors.primary : "transparent",
-                }}
-              >
-                <View
-                  style={{
-                    width: 48,
-                    height: 38,
-                    borderRadius: 8,
-                    backgroundColor: active ? `${page.accent}18` : "transparent",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons
-                    name={page.icon as keyof typeof Ionicons.glyphMap}
-                    size={24}
-                    color={active ? page.accent : colors.text}
-                  />
-                </View>
-                <Text
-                  style={{ color: colors.text, fontWeight: active ? "900" : "700", fontSize: 13, textAlign: "center" }}
-                  numberOfLines={1}
-                >
-                  {page.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                return (
+                  <Pressable
+                    key={page.id}
+                    onPress={() => router.push({ pathname: "/category/[id]", params: { id: page.id } })}
+                    style={{
+                      width: 92,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingTop: spacing.sm,
+                      paddingBottom: spacing.xs,
+                      borderBottomWidth: 3,
+                      borderBottomColor: active ? colors.primary : "transparent",
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 48,
+                        height: 38,
+                        borderRadius: 8,
+                        backgroundColor: active ? `${page.accent}18` : "transparent",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Ionicons
+                        name={page.icon as keyof typeof Ionicons.glyphMap}
+                        size={24}
+                        color={active ? page.accent : colors.text}
+                      />
+                    </View>
+                    <Text
+                      style={{ color: colors.text, fontWeight: active ? "900" : "700", fontSize: 13, textAlign: "center" }}
+                      numberOfLines={1}
+                    >
+                      {page.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
 
-        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+        <View
+          style={{
+            paddingHorizontal: contentHorizontalPadding,
+            paddingTop: spacing.lg,
+            width: "100%",
+            maxWidth: isDesktopWeb ? 1480 : undefined,
+            alignSelf: isDesktopWeb ? "center" : undefined,
+          }}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {banners.map((banner, index) => (
               <Pressable
                 key={banner.id}
                 onPress={() => router.push({ pathname: "/search", params: { category: banner.linkCategory } })}
                 style={{
-                  width: index === 1 ? 508 : 506,
+                  width: bannerWidth,
                   height: bannerHeight,
                   borderRadius: 14,
                   overflow: "hidden",
-                  marginRight: spacing.xl,
+                  marginRight: index === banners.length - 1 ? 0 : spacing.xl,
                   backgroundColor: colors.bg,
                 }}
               >
@@ -220,13 +256,13 @@ export default function BuyerCategoryScreen() {
               />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {pageProducts.slice(0, categoryPage.productCount || 8).map((product) => (
+                {pageProducts.slice(0, categoryPage.productCount || 8).map((product, index, visibleProducts) => (
                   <CategoryProductTile
                     key={product.id}
                     product={product}
                     buttonLabel={categoryPage.productCardCta || "View Store"}
                     width={productWidth}
-                    gap={horizontalGap}
+                    gap={index === visibleProducts.length - 1 ? 0 : horizontalGap}
                     onPress={() => router.push(`/product/${product.id}`)}
                   />
                 ))}
