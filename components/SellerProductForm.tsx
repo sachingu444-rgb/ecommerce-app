@@ -10,9 +10,11 @@ import {
   ScrollView,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
+import { MOBILE_BREAKPOINT } from "../constants/layout";
 import { getCategoryListingTemplate } from "../constants/productListing";
 import { categoryList } from "../constants/mockData";
 import { colors, radius, shadows, spacing } from "../constants/theme";
@@ -76,6 +78,7 @@ const AccordionSection = ({
   children,
   defaultExpanded = false,
   isComplete = false,
+  compact = false,
 }: {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -83,6 +86,7 @@ const AccordionSection = ({
   children: React.ReactNode;
   defaultExpanded?: boolean;
   isComplete?: boolean;
+  compact?: boolean;
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -109,15 +113,15 @@ const AccordionSection = ({
         style={({ hovered }) => ({
           flexDirection: "row",
           alignItems: "center",
-          padding: spacing.lg,
+          padding: compact ? spacing.md : spacing.lg,
           backgroundColor: expanded ? `${colors.primary}05` : hovered ? colors.bg : colors.white,
         })}
       >
         <View
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: radius.md,
+            width: compact ? 36 : 40,
+            height: compact ? 36 : 40,
+            borderRadius: compact ? radius.sm : radius.md,
             backgroundColor: isComplete ? `${colors.success}15` : expanded ? `${colors.primary}15` : colors.bg,
             alignItems: "center",
             justifyContent: "center",
@@ -127,10 +131,10 @@ const AccordionSection = ({
           <Ionicons name={isComplete ? "checkmark" : icon} size={20} color={isComplete ? colors.success : expanded ? colors.primary : colors.muted} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: "800", color: expanded ? colors.primaryDark : colors.text }}>
+          <Text style={{ fontSize: compact ? 15 : 16, lineHeight: compact ? 21 : 22, fontWeight: "800", color: expanded ? colors.primaryDark : colors.text }}>
             {title}
           </Text>
-          <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{subtitle}</Text>
+          <Text style={{ fontSize: compact ? 12 : 13, lineHeight: compact ? 18 : 19, color: colors.muted, marginTop: 2 }}>{subtitle}</Text>
         </View>
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}
@@ -140,7 +144,7 @@ const AccordionSection = ({
       </Pressable>
       
       {expanded && (
-        <View style={{ padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white }}>
+        <View style={{ padding: compact ? spacing.md : spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white }}>
           {children}
         </View>
       )}
@@ -155,6 +159,18 @@ const SellerProductForm = ({
   submitLabel,
   onSubmit,
 }: SellerProductFormProps) => {
+  const { width } = useWindowDimensions();
+  const compact = width < MOBILE_BREAKPOINT;
+  const responsiveRowStyle = {
+    flexDirection: compact ? "column" : "row",
+    gap: compact ? 0 : spacing.md,
+  } as const;
+  const fieldHalfStyle = { flex: 1, width: compact ? "100%" : undefined } as const;
+  const helperStyle = {
+    ...helperTextStyle,
+    fontSize: compact ? 13 : helperTextStyle.fontSize,
+    lineHeight: compact ? 20 : helperTextStyle.lineHeight,
+  };
   const [name, setName] = useState(initialProduct?.name || "");
   const [subtitle, setSubtitle] = useState(initialProduct?.subtitle || "");
   const [brand, setBrand] = useState(initialProduct?.brand || "");
@@ -269,12 +285,12 @@ const SellerProductForm = ({
   );
 
   return (
-    <View style={{ paddingBottom: 120 }}>
+    <View style={{ paddingBottom: compact ? 96 : 120 }}>
       {/* Progress Header */}
-      <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.sm }}>
+      <View style={{ marginBottom: compact ? spacing.lg : spacing.xl, paddingHorizontal: compact ? 0 : spacing.sm }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
-          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>Listing Completion</Text>
-          <Text style={{ color: colors.primary, fontWeight: "800" }}>{Math.round(completionPercentage)}%</Text>
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: compact ? 15 : 16, lineHeight: 22 }}>Listing Completion</Text>
+          <Text style={{ color: colors.primary, fontWeight: "800", fontSize: compact ? 15 : 14 }}>{Math.round(completionPercentage)}%</Text>
         </View>
         <View style={{ height: 8, borderRadius: radius.pill, backgroundColor: colors.border, overflow: "hidden" }}>
           <LinearGradient
@@ -292,6 +308,7 @@ const SellerProductForm = ({
         subtitle="High quality images increase sales by up to 40%."
         defaultExpanded={true}
         isComplete={isMediaComplete}
+        compact={compact}
       >
         <Pressable
           onPress={pickImages}
@@ -301,20 +318,20 @@ const SellerProductForm = ({
             borderStyle: "dashed",
             borderRadius: radius.lg,
             backgroundColor: hovered ? `${colors.primary}05` : colors.bg,
-            minHeight: 160,
+            minHeight: compact ? 132 : 160,
             alignItems: "center",
             justifyContent: "center",
-            padding: spacing.xl,
+            padding: compact ? spacing.lg : spacing.xl,
             marginBottom: spacing.md,
           })}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, ...shadows.card }}>
-            <Ionicons name="cloud-upload" size={28} color={colors.primary} />
+          <View style={{ width: compact ? 48 : 56, height: compact ? 48 : 56, borderRadius: compact ? 24 : 28, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, ...shadows.card }}>
+            <Ionicons name="cloud-upload" size={compact ? 24 : 28} color={colors.primary} />
           </View>
-          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
-            Drag & Drop or Click to Upload
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: compact ? 15 : 16, lineHeight: compact ? 21 : 22, marginBottom: 4, textAlign: "center" }}>
+            {compact ? "Tap to Upload Photos" : "Drag & Drop or Click to Upload"}
           </Text>
-          <Text style={{ color: colors.muted, textAlign: "center" }}>
+          <Text style={{ color: colors.muted, textAlign: "center", fontSize: compact ? 13 : 14, lineHeight: compact ? 20 : 21 }}>
             Add up to 5 high-resolution images (JPEG, PNG). The first image will be the cover.
           </Text>
         </Pressable>
@@ -405,6 +422,7 @@ const SellerProductForm = ({
         subtitle="Title, category, and main description."
         defaultExpanded={true}
         isComplete={isDetailsComplete}
+        compact={compact}
       >
         <FormField
           label="Product Name (Required)"
@@ -414,7 +432,7 @@ const SellerProductForm = ({
           placeholder="e.g. Apple AirPods Pro (2nd Gen)"
         />
         
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", marginTop: spacing.xs, marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: compact ? 15 : 14, lineHeight: 21, fontWeight: "800", marginTop: spacing.xs, marginBottom: spacing.sm }}>
           Primary Category
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>
@@ -445,8 +463,8 @@ const SellerProductForm = ({
           })}
         </ScrollView>
 
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
+        <View style={responsiveRowStyle}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="Brand Name"
               icon="ribbon-outline"
@@ -455,7 +473,7 @@ const SellerProductForm = ({
               placeholder="e.g. Apple"
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="Subtitle (Optional)"
               icon="information-circle-outline"
@@ -482,9 +500,10 @@ const SellerProductForm = ({
         icon="pricetags-outline"
         subtitle="Manage cost, discounts, and available stock."
         isComplete={isPricingComplete}
+        compact={compact}
       >
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
+        <View style={responsiveRowStyle}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="Selling Price (â‚¹)"
               icon="cash"
@@ -494,7 +513,7 @@ const SellerProductForm = ({
               placeholder="e.g. 24900"
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="MRP / Original Price (â‚¹)"
               icon="pricetag-outline"
@@ -515,7 +534,7 @@ const SellerProductForm = ({
           </View>
         )}
 
-        <View style={{ width: "50%" }}>
+        <View style={{ width: compact ? "100%" : "50%" }}>
           <FormField
             label="Initial Stock Quantity"
             icon="layers-outline"
@@ -531,15 +550,16 @@ const SellerProductForm = ({
         title={`Variants & Specifications (${category})`}
         icon="options-outline"
         subtitle="Dynamic options based on the chosen category."
+        compact={compact}
       >
         <View style={{ backgroundColor: `${colors.primary}0A`, padding: spacing.md, borderRadius: radius.md, marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.primaryDark, fontWeight: "700", marginBottom: 4 }}>Dynamic Template Active</Text>
-          <Text style={{ color: colors.text, fontSize: 13 }}>Showing specification fields recommended for {category} products.</Text>
+          <Text style={{ color: colors.primaryDark, fontWeight: "700", marginBottom: 4, fontSize: compact ? 14 : 13, lineHeight: 20 }}>Dynamic Template Active</Text>
+          <Text style={{ color: colors.text, fontSize: compact ? 13 : 13, lineHeight: compact ? 20 : 18 }}>Showing specification fields recommended for {category} products.</Text>
         </View>
 
         {categoryTemplate.optionFields.length > 0 && (
           <>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900", marginBottom: spacing.sm }}>
+            <Text style={{ color: colors.text, fontSize: compact ? 16 : 15, lineHeight: 22, fontWeight: "900", marginBottom: spacing.sm }}>
               Buyer Options
             </Text>
             {categoryTemplate.optionFields.map((field) => (
@@ -553,14 +573,14 @@ const SellerProductForm = ({
                   }
                   placeholder={field.placeholder}
                 />
-                <Text style={helperTextStyle}>{field.helper}</Text>
+                <Text style={helperStyle}>{field.helper}</Text>
               </View>
             ))}
             <View style={{ height: 1, backgroundColor: colors.border, marginVertical: spacing.md }} />
           </>
         )}
 
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900", marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: compact ? 16 : 15, lineHeight: 22, fontWeight: "900", marginBottom: spacing.sm }}>
           Technical Specifications
         </Text>
         {categoryTemplate.specFields.map((field) => (
@@ -577,7 +597,7 @@ const SellerProductForm = ({
               }
               placeholder={field.placeholder}
             />
-            <Text style={helperTextStyle}>{field.helper}</Text>
+            <Text style={helperStyle}>{field.helper}</Text>
           </View>
         ))}
 
@@ -590,13 +610,14 @@ const SellerProductForm = ({
           multiline
           inputStyle={{ minHeight: 100, textAlignVertical: "top" }}
         />
-        <Text style={helperTextStyle}>Provide key marketing points (one per line).</Text>
+        <Text style={helperStyle}>Provide key marketing points (one per line).</Text>
       </AccordionSection>
 
       <AccordionSection
         title="Shipping & Policies"
         icon="cube-outline"
         subtitle="Delivery expectations and return rules."
+        compact={compact}
       >
         <FormField
           label="Delivery Details & Speed"
@@ -607,10 +628,10 @@ const SellerProductForm = ({
           multiline
           inputStyle={{ minHeight: 80, textAlignVertical: "top" }}
         />
-        <Text style={helperTextStyle}>e.g. Dispatches in 24 hours (one per line).</Text>
+        <Text style={helperStyle}>e.g. Dispatches in 24 hours (one per line).</Text>
 
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
+        <View style={responsiveRowStyle}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="Return Policy"
               icon="refresh-outline"
@@ -619,7 +640,7 @@ const SellerProductForm = ({
               placeholder={categoryTemplate.returnPolicyHint}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={fieldHalfStyle}>
             <FormField
               label="Warranty Provider"
               icon="shield-checkmark-outline"
@@ -635,14 +656,15 @@ const SellerProductForm = ({
         title="Publishing Details"
         icon="rocket-outline"
         subtitle="Visibility and merchandising controls."
+        compact={compact}
       >
         <Pressable
           onPress={() => setIsFeatured(!isFeatured)}
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.bg }}
         >
           <View style={{ flex: 1, paddingRight: spacing.md }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Featured Product</Text>
-            <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: compact ? 16 : 15, lineHeight: 22 }}>Featured Product</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: compact ? 13 : 13, lineHeight: compact ? 20 : 18 }}>
               Boost visibility in category pages and search results.
             </Text>
           </View>
@@ -659,8 +681,8 @@ const SellerProductForm = ({
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md }}
         >
           <View style={{ flex: 1, paddingRight: spacing.md }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Promote as Deal</Text>
-            <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: compact ? 16 : 15, lineHeight: 22 }}>Promote as Deal</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: compact ? 13 : 13, lineHeight: compact ? 20 : 18 }}>
               Highlight this item in "Deals of the Day" collections.
             </Text>
           </View>
@@ -673,7 +695,7 @@ const SellerProductForm = ({
         </Pressable>
       </AccordionSection>
 
-      <View style={{ marginTop: spacing.xl, paddingHorizontal: spacing.sm }}>
+      <View style={{ marginTop: compact ? spacing.lg : spacing.xl, paddingHorizontal: compact ? 0 : spacing.sm }}>
         <Pressable
           disabled={loading}
           onPress={async () => {
@@ -721,7 +743,7 @@ const SellerProductForm = ({
             backgroundColor: colors.primary,
             borderRadius: radius.md,
             alignItems: "center",
-            paddingVertical: 16,
+            paddingVertical: compact ? 15 : 16,
             flexDirection: "row",
             justifyContent: "center",
             gap: spacing.sm,
@@ -736,11 +758,11 @@ const SellerProductForm = ({
           ) : (
             <>
               <Ionicons name="cloud-upload" size={20} color={colors.white} />
-              <Text style={{ color: colors.white, fontWeight: "900", fontSize: 16 }}>{submitLabel}</Text>
+              <Text style={{ color: colors.white, fontWeight: "900", fontSize: compact ? 15 : 16, lineHeight: 22 }}>{submitLabel}</Text>
             </>
           )}
         </Pressable>
-        <Text style={{ color: colors.muted, textAlign: "center", marginTop: spacing.md, fontSize: 13 }}>
+        <Text style={{ color: colors.muted, textAlign: "center", marginTop: spacing.md, fontSize: compact ? 13 : 13, lineHeight: compact ? 20 : 18 }}>
           By publishing, you agree to the Seller Marketplace Guidelines.
         </Text>
       </View>

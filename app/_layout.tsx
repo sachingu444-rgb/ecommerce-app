@@ -2,7 +2,7 @@ import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Appearance, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 
@@ -14,6 +14,19 @@ import { useCartSync } from "../hooks/useCartSync";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { stripePublishableKey } from "../lib/payment";
 import { StripeProvider } from "../lib/stripe";
+
+(Text as typeof Text & { defaultProps?: Record<string, unknown> }).defaultProps = {
+  ...(Text as typeof Text & { defaultProps?: Record<string, unknown> }).defaultProps,
+  allowFontScaling: true,
+  maxFontSizeMultiplier: 1.25,
+};
+
+(TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> }).defaultProps = {
+  ...(TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> }).defaultProps,
+  allowFontScaling: true,
+  maxFontSizeMultiplier: 1.2,
+  keyboardAppearance: "light",
+};
 
 const SplashScreen = () => (
   <View
@@ -41,6 +54,10 @@ const RootNavigator = () => {
 
   useCartSync();
   usePushNotifications(user?.uid);
+
+  useEffect(() => {
+    Appearance.setColorScheme("light");
+  }, []);
 
   useEffect(() => {
     const hideWebSplash = () => {
@@ -114,7 +131,7 @@ const RootNavigator = () => {
   return (
     <ErrorBoundary>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <StatusBar style="light" backgroundColor={colors.primary} translucent={false} />
+        <StatusBar style="dark" backgroundColor={colors.bg} translucent={false} />
         <Stack
           screenOptions={{
             headerShown: false,

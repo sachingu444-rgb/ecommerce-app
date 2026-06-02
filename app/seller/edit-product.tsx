@@ -2,10 +2,11 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, Text, useWindowDimensions, View } from "react-native";
 
 import EmptyState from "../../components/EmptyState";
 import SellerProductForm from "../../components/SellerProductForm";
+import { MOBILE_BREAKPOINT } from "../../constants/layout";
 import { colors, spacing } from "../../constants/theme";
 import { useAuth } from "../../hooks/useAuth";
 import { fetchProductById, updateProduct, uploadImages } from "../../lib/firebaseApi";
@@ -14,6 +15,8 @@ import { Product } from "../../types";
 
 export default function EditProductScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const compact = width < MOBILE_BREAKPOINT;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
@@ -52,24 +55,33 @@ export default function EditProductScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: compact ? spacing.md : spacing.lg,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, marginBottom: compact ? spacing.md : spacing.lg }}>
           <Pressable
             onPress={() => router.back()}
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
+              width: compact ? 38 : 42,
+              height: compact ? 38 : 42,
+              borderRadius: compact ? 19 : 21,
               backgroundColor: colors.white,
               alignItems: "center",
               justifyContent: "center",
+              marginTop: compact ? 2 : 0,
             }}
           >
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
-          <View>
-            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>Edit Product</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>Update pricing, stock and media for this listing.</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: compact ? 24 : 28, lineHeight: compact ? 30 : 34, fontWeight: "900", color: colors.text }}>Edit Product</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: compact ? 13 : 14, lineHeight: compact ? 20 : 21 }}>
+              Update pricing, stock and media for this listing.
+            </Text>
           </View>
         </View>
 

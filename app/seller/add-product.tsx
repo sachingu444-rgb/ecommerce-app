@@ -7,10 +7,12 @@ import {
   SafeAreaView,
   ScrollView,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import SellerProductForm from "../../components/SellerProductForm";
+import { MOBILE_BREAKPOINT } from "../../constants/layout";
 import { colors, spacing } from "../../constants/theme";
 import { auth } from "../../firebaseConfig";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,6 +22,8 @@ import { uploadProduct } from "../../lib/uploadProduct";
 
 export default function AddProductScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const compact = width < MOBILE_BREAKPOINT;
   const { loading: authLoading, user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -85,33 +89,40 @@ export default function AddProductScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: compact ? spacing.md : spacing.lg,
+        }}
+      >
         <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
+            alignItems: "flex-start",
             gap: spacing.sm,
-            marginBottom: spacing.lg,
+            marginBottom: compact ? spacing.md : spacing.lg,
           }}
         >
           <Pressable
             onPress={() => router.back()}
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
+              width: compact ? 38 : 42,
+              height: compact ? 38 : 42,
+              borderRadius: compact ? 19 : 21,
               backgroundColor: colors.white,
               alignItems: "center",
               justifyContent: "center",
+              marginTop: compact ? 2 : 0,
             }}
           >
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
+            <Text style={{ fontSize: compact ? 24 : 28, lineHeight: compact ? 30 : 34, fontWeight: "900", color: colors.text }}>
               Add Product
             </Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: compact ? 13 : 14, lineHeight: compact ? 20 : 21 }}>
               Create a richer marketplace listing with category-based options and specs.
             </Text>
           </View>

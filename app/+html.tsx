@@ -42,6 +42,7 @@ export default function Root({ children }: PropsWithChildren) {
         />
 
         <meta name="theme-color" content="#0066CC" />
+        <meta name="color-scheme" content="light only" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SachinIndia" />
@@ -61,10 +62,21 @@ export default function Root({ children }: PropsWithChildren) {
           ::-webkit-scrollbar-thumb { background: rgba(0,102,204,0.2); border-radius: 99px; }
           ::-webkit-scrollbar-thumb:hover { background: rgba(0,102,204,0.4); }
           * { scrollbar-width: thin; scrollbar-color: rgba(0,102,204,0.2) transparent; }
-          body { overflow: hidden; }
-          html, body, #root { max-width: 100%; overflow-x: hidden; }
+          :root { color-scheme: light only; background: #F0F2F5; }
+          body { overflow: hidden; background: #F0F2F5; color: #1A1A2E; }
+          html, body, #root { max-width: 100%; overflow-x: hidden; color-scheme: light only; }
           #root { display: flex; height: 100%; }
           html, body { height: 100%; }
+          input, textarea, select, button {
+            color-scheme: light only;
+            -webkit-text-size-adjust: 100%;
+          }
+          @media (prefers-color-scheme: dark) {
+            html, body, #root {
+              background: #F0F2F5;
+              color: #1A1A2E;
+            }
+          }
           #expo-splash {
             position: fixed;
             inset: 0;

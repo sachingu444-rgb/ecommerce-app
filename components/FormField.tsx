@@ -6,9 +6,11 @@ import {
   TextStyle,
   TextInput,
   TextInputProps,
+  useWindowDimensions,
   View,
 } from "react-native";
 
+import { MOBILE_BREAKPOINT } from "../constants/layout";
 import { colors, radius, spacing } from "../constants/theme";
 
 interface FormFieldProps extends TextInputProps {
@@ -31,15 +33,19 @@ const FormField = ({
   inputStyle,
   ...props
 }: FormFieldProps) => {
+  const { width } = useWindowDimensions();
+  const compact = width < MOBILE_BREAKPOINT;
+
   return (
     <View style={{ marginBottom: spacing.md }}>
       {label ? (
         <Text
           style={{
             color: colors.text,
-            fontSize: 13,
+            fontSize: compact ? 14 : 13,
             fontWeight: "700",
             marginBottom: spacing.sm,
+            lineHeight: compact ? 20 : 18,
           }}
         >
           {label}
@@ -55,6 +61,7 @@ const FormField = ({
           borderColor: error ? colors.danger : colors.border,
           backgroundColor: colors.white,
           paddingHorizontal: spacing.md,
+          minHeight: compact ? 54 : 50,
         }}
       >
         {icon ? (
@@ -67,12 +74,16 @@ const FormField = ({
         ) : null}
         <TextInput
           placeholderTextColor={colors.muted}
+          keyboardAppearance="light"
+          cursorColor={colors.primary}
+          selectionColor={colors.primaryLight}
           style={[
             {
               flex: 1,
-              minHeight: 50,
+              minHeight: compact ? 54 : 50,
               color: colors.text,
-              fontSize: 15,
+              fontSize: compact ? 16 : 15,
+              lineHeight: compact ? 22 : 20,
               paddingVertical: spacing.md,
             },
             inputStyle,
