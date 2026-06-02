@@ -1,0 +1,16 @@
+{
+  "css.lint.emptyRules": "ignore",
+  "css.lint.unknownProperties": "warning",
+  "css.lint.validProperties": ["border-curve"],
+  "css.lint.vendorPrefix": "ignore",
+  "files.exclude": {
+    ".vercel/output": true,
+    "dist": true,
+    "dist-layout-check": true
+  },
+  "search.exclude": {
+    ".vercel/output": true,
+    "dist": true,
+    "dist-layout-check": true
+  }
+}

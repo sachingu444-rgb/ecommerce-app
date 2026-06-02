@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { signOut } from "firebase/auth";
 import { useRouter } from "expo-router";
@@ -115,66 +115,45 @@ const getMonthlyOrders = (orders: Order[]) => {
 };
 
 const MetricCard = ({ label, value, sublabel, icon, color }: MetricCardProps) => (
-  <View style={{ flex: 1, minWidth: 240 }}>
-    <LinearGradient
-      colors={[colors.white, `${color}0A`]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[
-        panelStyle,
-        {
-          padding: spacing.xl,
-          borderWidth: 1,
-          borderColor: `${color}20`,
-          borderRadius: 24,
-          overflow: 'hidden',
-          shadowColor: color,
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: 0.08,
-          shadowRadius: 24,
-          elevation: 5,
-        },
-      ]}
-    >
-      <View style={{ position: 'absolute', right: -24, top: -24, opacity: 0.08 }}>
-        <Ionicons name={icon} size={140} color={color} />
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              backgroundColor: `${color}15`,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: `${color}30`,
-            }}
-          >
-            <Ionicons name={icon} size={22} color={color} />
-          </View>
-          <Text style={{ color: colors.muted, fontWeight: '800', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {label}
-          </Text>
-        </View>
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ color: colors.text, fontSize: 38, fontWeight: '900', letterSpacing: -1.5 }}>
+  <View
+    style={[
+      panelStyle,
+      {
+        flex: 1,
+        minWidth: 180,
+        padding: spacing.xl,
+        justifyContent: "space-between",
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        borderWidth: 0,
+        borderColor: "transparent",
+      },
+    ]}
+  >
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <View>
+        <Text style={{ color: colors.muted, fontWeight: "600", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</Text>
+        <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800", marginTop: spacing.sm, letterSpacing: -0.5 }}>
           {value}
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.xs }}>
-          <View style={{ backgroundColor: `${colors.success}15`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Ionicons name='trending-up' size={14} color={colors.success} />
-            <Text style={{ color: colors.success, fontSize: 12, fontWeight: '800' }}>Active</Text>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{sublabel}</Text>
-        </View>
       </View>
-    </LinearGradient>
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          backgroundColor: `${color}15`,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Ionicons name={icon} size={22} color={color} />
+      </View>
+    </View>
+    <View style={{ flexDirection: "row", alignItems: "center", marginTop: spacing.lg, gap: 4 }}>
+      <Ionicons name="trending-up" size={14} color={colors.success} />
+      <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "500" }}>{sublabel}</Text>
+    </View>
   </View>
 );
 
@@ -304,7 +283,7 @@ const SellerToolbar = ({
         paddingVertical: spacing.xl,
         gap: spacing.xl,
         zIndex: 10,
-        ...(Platform.OS === "web" ? { position: "sticky" as any, top: 0, height: "100vh" as any } : { flex: 1 }),
+        ...(Platform.OS === "web" ? { position: "sticky", top: 0, height: "100vh" } : { flex: 1 }),
       }}
     >
       <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
@@ -747,6 +726,7 @@ export default function SellerDashboardScreen() {
                   <Pressable
                     onPress={() => setActivePanel("orders")}
                     style={({ hovered }) => ({
+                      backgroundColor: "rgba(255,255,255,0.15)",
                       borderRadius: radius.pill,
                       borderWidth: 1,
                       borderColor: "rgba(255,255,255,0.3)",
@@ -980,7 +960,7 @@ export default function SellerDashboardScreen() {
                                   Order #{truncateId(order.orderId)}
                                 </Text>
                                 <Text style={{ color: colors.muted, fontSize: 13 }}>
-                                  {order.buyerName} â€¢ {formatDate(order.createdAt)}
+                                  {order.buyerName} • {formatDate(order.createdAt)}
                                 </Text>
                               </View>
                               <View style={{ alignItems: "flex-end", gap: 6 }}>
@@ -1109,7 +1089,7 @@ export default function SellerDashboardScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }} numberOfLines={1}>{product.name}</Text>
                               <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                                {formatCurrency(product.price)} â€¢ {product.stock} left
+                                {formatCurrency(product.price)} • {product.stock} left
                               </Text>
                             </View>
                             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
@@ -1311,7 +1291,7 @@ export default function SellerDashboardScreen() {
                               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 6 }}>
                                 <Ionicons name="person-circle-outline" size={16} color={colors.muted} />
                                 <Text style={{ color: colors.muted, fontSize: 14 }}>
-                                  {order.buyerName} â€¢ {formatDate(order.createdAt, true)}
+                                  {order.buyerName} • {formatDate(order.createdAt, true)}
                                 </Text>
                               </View>
                             </View>
@@ -1519,5 +1499,3 @@ export default function SellerDashboardScreen() {
     </SafeAreaView>
   );
 }
-
-

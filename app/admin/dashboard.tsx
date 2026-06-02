@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { signOut } from "firebase/auth";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -18,16 +19,20 @@ import {
 
 import FullScreenLoader from "../../components/FullScreenLoader";
 import {
-  defaultBuyerCategoryPages,
+  defaultBuyerEditableCategoryPages,
   defaultBuyerEditablePages,
+  defaultBuyerHomeDesign,
   defaultBuyerHomeSectionOrder,
+  defaultBuyerMainHomeCategoryPage,
   defaultBuyerPageContent,
   normalizeBuyerPageContent,
   normalizeBuyerHomeSectionOrder,
 } from "../../constants/buyerPageContent";
+import { CATEGORY_BANNER_ASPECT_RATIO } from "../../constants/layout";
 import { colors, orderStatusColors, radius, shadows, spacing } from "../../constants/theme";
 import { auth } from "../../firebaseConfig";
 import { useAuth } from "../../hooks/useAuth";
+import { uploadImageToCloudinary } from "../../lib/cloudinary";
 import {
   approveWalletTopUpRequest,
   rejectWalletTopUpRequest,
@@ -68,6 +73,8 @@ type ProductStatusFilter = "all" | "active" | "paused" | "deal" | "out";
 type UserRoleFilter = "all" | UserRole;
 type SellerStatusFilter = "all" | "pending" | "approved";
 type EditorSection =
+  | "header"
+  | "footer"
   | "pageLabels"
   | "hero"
   | "promo"
@@ -233,6 +240,8 @@ const looksLikeRemoteImage = (value?: string) => {
 };
 
 const countEditorItems = (content: BuyerPageContent) =>
+  content.header.navLinks.length +
+  content.footer.quickLinks.length +
   content.home.heroes.length +
   content.home.promoGrid.length +
   content.home.brandSpotlight.length +
@@ -455,29 +464,195 @@ const EditorField = ({
   value: string;
   onChangeText: (value: string) => void;
   multiline?: boolean;
+}) => {
+  const [localValue, setLocalValue] = useState(value);
+  const focusedRef = useRef(false);
+  const pendingValueRef = useRef(value);
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!focusedRef.current && value !== pendingValueRef.current) {
+      pendingValueRef.current = value;
+      setLocalValue(value);
+    }
+  }, [value]);
+
+  useEffect(
+    () => () => {
+      if (commitTimerRef.current) {
+        clearTimeout(commitTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const commitValue = (nextValue: string) => {
+    pendingValueRef.current = nextValue;
+    onChangeText(nextValue);
+  };
+
+  const scheduleCommit = (nextValue: string) => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+    }
+
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null;
+      commitValue(nextValue);
+    }, 180);
+  };
+
+  const handleChangeText = (nextValue: string) => {
+    setLocalValue(nextValue);
+    scheduleCommit(nextValue);
+  };
+
+  const handleBlur = () => {
+    focusedRef.current = false;
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    commitValue(localValue);
+  };
+
+  return (
+    <View style={{ gap: 7 }}>
+      <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>{label}</Text>
+      <TextInput
+        value={localValue}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onBlur={handleBlur}
+        onChangeText={handleChangeText}
+        multiline={multiline}
+        placeholderTextColor={adminColors.softMuted}
+        style={{
+          minHeight: multiline ? 78 : 42,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: adminColors.lineStrong,
+          backgroundColor: colors.white,
+          color: adminColors.ink,
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          fontSize: 13,
+          lineHeight: multiline ? 18 : undefined,
+          textAlignVertical: multiline ? "top" : "center",
+          outlineStyle: "none" as never,
+        }}
+      />
+    </View>
+  );
+};
+
+const EditorColorField = ({
+  label,
+  value,
+  onChangeText,
+  swatches = ["#FFFFFF", "#111827", "#FBBF24", "#0B887B", "#1688F0", "#F4FF00"],
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  swatches?: string[];
 }) => (
-  <View style={{ gap: 6 }}>
-    <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }}>{label}</Text>
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      multiline={multiline}
-      placeholderTextColor={adminColors.softMuted}
+  <View style={{ gap: spacing.sm }}>
+    <EditorField label={label} value={value} onChangeText={onChangeText} />
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+      {swatches.map((colorValue) => (
+        <Pressable
+          accessibilityRole="button"
+          key={`${label}-${colorValue}`}
+          onPress={() => onChangeText(colorValue)}
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            borderWidth: value === colorValue ? 2 : 1,
+            borderColor: value === colorValue ? "#1688F0" : adminColors.lineStrong,
+            backgroundColor: colorValue,
+          }}
+        />
+      ))}
+    </View>
+  </View>
+);
+
+const EditorImageField = ({
+  label,
+  value,
+  onChangeText,
+  onUpload,
+  uploading,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  onUpload: () => void;
+  uploading: boolean;
+}) => (
+  <View style={{ gap: spacing.sm }}>
+    <EditorField label={label} value={value} onChangeText={onChangeText} multiline />
+    <View
       style={{
-        minHeight: multiline ? 78 : 42,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: adminColors.lineStrong,
-        backgroundColor: "#FAFBFC",
-        color: adminColors.ink,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        fontSize: 13,
-        textAlignVertical: multiline ? "top" : "center",
-        outlineStyle: "none" as never,
+        borderColor: adminColors.line,
+        backgroundColor: colors.white,
+        overflow: "hidden",
       }}
+    >
+      {value ? (
+        <Image source={{ uri: value }} resizeMode="cover" style={{ width: "100%", height: 112 }} />
+      ) : (
+        <View style={{ height: 112, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" }}>
+          <Ionicons name="image-outline" size={24} color={adminColors.softMuted} />
+        </View>
+      )}
+    </View>
+    <ActionButton
+      label={uploading ? "Uploading..." : "Upload Image"}
+      icon={uploading ? "hourglass-outline" : "cloud-upload-outline"}
+      ghost
+      disabled={uploading}
+      onPress={onUpload}
     />
   </View>
+);
+
+const ToggleRow = ({
+  label,
+  value,
+  onToggle,
+}: {
+  label: string;
+  value: boolean;
+  onToggle: () => void;
+}) => (
+  <Pressable
+    accessibilityRole="switch"
+    accessibilityState={{ checked: value }}
+    onPress={onToggle}
+    style={{
+      minHeight: 42,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: value ? colors.success : adminColors.lineStrong,
+      backgroundColor: value ? "#ECFDF3" : "#FAFBFC",
+      paddingHorizontal: spacing.md,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing.md,
+    }}
+  >
+    <Text style={{ flex: 1, color: adminColors.ink, fontSize: 12, fontWeight: "900" }} numberOfLines={1}>
+      {label}
+    </Text>
+    <Ionicons name={value ? "toggle" : "toggle-outline"} size={25} color={value ? colors.success : adminColors.muted} />
+  </Pressable>
 );
 
 const StoreEditorPanel = ({
@@ -529,14 +704,16 @@ const StoreEditorPanel = ({
   const [selectedSitePageIndex, setSelectedSitePageIndex] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
+  const [uploadingImageKey, setUploadingImageKey] = useState<string | null>(null);
   const [editorShellWidth, setEditorShellWidth] = useState(0);
-  const [leftPaneWidth, setLeftPaneWidth] = useState(248);
-  const [inspectorWidth, setInspectorWidth] = useState(340);
+  const [previewPaneWidth, setPreviewPaneWidth] = useState(0);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(286);
+  const [inspectorWidth, setInspectorWidth] = useState(420);
   const [draggingSplitter, setDraggingSplitter] = useState<"left" | "right" | null>(null);
   const resizeStartRef = useRef({
     pageX: 0,
-    leftPaneWidth: 248,
-    inspectorWidth: 340,
+    leftPaneWidth: 286,
+    inspectorWidth: 420,
   });
   const selectedPromo = promoItems[Math.min(selectedPromoIndex, Math.max(promoItems.length - 1, 0))];
   const selectedCategory = categoryItems[Math.min(selectedCategoryIndex, Math.max(categoryItems.length - 1, 0))];
@@ -544,13 +721,22 @@ const StoreEditorPanel = ({
   const selectedMedia = mediaItems[Math.min(selectedMediaIndex, Math.max(mediaItems.length - 1, 0))];
   const brandItems = draft.home.brandSpotlight;
   const selectedBrand = brandItems[Math.min(selectedBrandIndex, Math.max(brandItems.length - 1, 0))];
-  const categoryPageItems = draft.categoryPages || defaultBuyerCategoryPages;
-  const selectedCategoryPage =
-    categoryPageItems[Math.min(selectedCategoryPageIndex, Math.max(categoryPageItems.length - 1, 0))];
+  const categoryPageItems = draft.categoryPages?.length
+    ? draft.categoryPages
+    : defaultBuyerEditableCategoryPages;
+  const safeCategoryPageIndex = Math.min(
+    selectedCategoryPageIndex,
+    Math.max(categoryPageItems.length - 1, 0)
+  );
+  const selectedCategoryPage = categoryPageItems[safeCategoryPageIndex];
   const sitePageItems = draft.editablePages || defaultBuyerEditablePages;
   const selectedSitePage = sitePageItems[Math.min(selectedSitePageIndex, Math.max(sitePageItems.length - 1, 0))];
   const selectedAccent =
-    activeSection === "hero"
+    activeSection === "header"
+      ? draft.header.accentColor
+      : activeSection === "footer"
+        ? draft.footer.backgroundColor
+        : activeSection === "hero"
       ? previewHero.accent
       : activeSection === "promo"
         ? "#2563EB"
@@ -576,24 +762,104 @@ const StoreEditorPanel = ({
     });
   };
 
+  const updateHeader = (value: Partial<BuyerPageContent["header"]>) => {
+    onChange({
+      ...draft,
+      header: {
+        ...draft.header,
+        ...value,
+      },
+    });
+  };
+
+  const updateHeaderNavLinks = (value: string) => {
+    updateHeader({
+      navLinks: value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  };
+
+  const updateFooter = (value: Partial<BuyerPageContent["footer"]>) => {
+    onChange({
+      ...draft,
+      footer: {
+        ...draft.footer,
+        ...value,
+      },
+    });
+  };
+
+  const updateFooterQuickLinks = (value: string) => {
+    updateFooter({
+      quickLinks: value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  };
+
+  const pickAndUploadImage = async (key: string, onUploaded: (url: string) => void) => {
+    if (uploadingImageKey) {
+      return;
+    }
+
+    try {
+      setUploadingImageKey(key);
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        showToast("error", "Gallery permission required", "Allow photo access to upload store images.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) {
+        return;
+      }
+
+      const imageUrl = await uploadImageToCloudinary(result.assets[0].uri);
+      onUploaded(imageUrl);
+      showToast("success", "Image uploaded", "The image URL was added to this store block.");
+    } catch (error) {
+      console.error("[admin] image upload failed", error);
+      showToast("error", "Image upload failed", "Please try another image or paste an image URL.");
+    } finally {
+      setUploadingImageKey(null);
+    }
+  };
+
   const updateCategoryPage = (index: number, key: keyof BuyerCategoryPage, value: string | number | boolean) => {
     const categoryPages = [...categoryPageItems];
-    categoryPages[index] = {
-      ...categoryPages[index],
+    const safeIndex = Math.min(index, Math.max(categoryPages.length - 1, 0));
+    if (!categoryPages[safeIndex]) {
+      return;
+    }
+    categoryPages[safeIndex] = {
+      ...categoryPages[safeIndex],
       [key]: value,
     };
     onChange({
       ...draft,
       categoryPages,
     });
+    setSelectedCategoryPageIndex(safeIndex);
   };
 
   const restoreCategoryPages = () => {
     onChange({
       ...draft,
-      categoryPages: defaultBuyerCategoryPages,
+      categoryPages: defaultBuyerEditableCategoryPages,
     });
     setSelectedCategoryPageIndex(0);
+    setSelectedCategoryPageBannerIndex(0);
+    setSelectedCategoryPageTileIndex(0);
   };
 
   const updateCategoryPageBanner = (
@@ -603,17 +869,25 @@ const StoreEditorPanel = ({
     value: string
   ) => {
     const categoryPages = [...categoryPageItems];
-    const page = categoryPages[pageIndex];
+    const safePageIndex = Math.min(pageIndex, Math.max(categoryPages.length - 1, 0));
+    const page = categoryPages[safePageIndex];
+    if (!page) {
+      return;
+    }
     const banners = [...(page.banners || [])];
+    if (!banners[bannerIndex]) {
+      return;
+    }
     banners[bannerIndex] = { ...banners[bannerIndex], [key]: value };
-    categoryPages[pageIndex] = { ...page, banners };
+    categoryPages[safePageIndex] = { ...page, banners };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safePageIndex);
   };
 
   const addCategoryPageBanner = () => {
     if (!selectedCategoryPage) return;
     const categoryPages = [...categoryPageItems];
-    categoryPages[selectedCategoryPageIndex] = {
+    categoryPages[safeCategoryPageIndex] = {
       ...selectedCategoryPage,
       banners: [
         ...(selectedCategoryPage.banners || []),
@@ -627,16 +901,21 @@ const StoreEditorPanel = ({
       ],
     };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safeCategoryPageIndex);
+    setSelectedCategoryPageBannerIndex((selectedCategoryPage.banners || []).length);
   };
 
   const removeCategoryPageBanner = (bannerIndex: number) => {
     if (!selectedCategoryPage) return;
     const categoryPages = [...categoryPageItems];
-    categoryPages[selectedCategoryPageIndex] = {
+    const banners = (selectedCategoryPage.banners || []).filter((_, index) => index !== bannerIndex);
+    categoryPages[safeCategoryPageIndex] = {
       ...selectedCategoryPage,
-      banners: (selectedCategoryPage.banners || []).filter((_, index) => index !== bannerIndex),
+      banners,
     };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safeCategoryPageIndex);
+    setSelectedCategoryPageBannerIndex(clamp(bannerIndex - 1, 0, Math.max(banners.length - 1, 0)));
   };
 
   const updateCategoryPageTile = (
@@ -646,17 +925,25 @@ const StoreEditorPanel = ({
     value: string
   ) => {
     const categoryPages = [...categoryPageItems];
-    const page = categoryPages[pageIndex];
+    const safePageIndex = Math.min(pageIndex, Math.max(categoryPages.length - 1, 0));
+    const page = categoryPages[safePageIndex];
+    if (!page) {
+      return;
+    }
     const tiles = [...(page.tiles || [])];
+    if (!tiles[tileIndex]) {
+      return;
+    }
     tiles[tileIndex] = { ...tiles[tileIndex], [key]: value };
-    categoryPages[pageIndex] = { ...page, tiles };
+    categoryPages[safePageIndex] = { ...page, tiles };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safePageIndex);
   };
 
   const addCategoryPageTile = () => {
     if (!selectedCategoryPage) return;
     const categoryPages = [...categoryPageItems];
-    categoryPages[selectedCategoryPageIndex] = {
+    categoryPages[safeCategoryPageIndex] = {
       ...selectedCategoryPage,
       tiles: [
         ...(selectedCategoryPage.tiles || []),
@@ -669,16 +956,21 @@ const StoreEditorPanel = ({
       ],
     };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safeCategoryPageIndex);
+    setSelectedCategoryPageTileIndex((selectedCategoryPage.tiles || []).length);
   };
 
   const removeCategoryPageTile = (tileIndex: number) => {
     if (!selectedCategoryPage) return;
     const categoryPages = [...categoryPageItems];
-    categoryPages[selectedCategoryPageIndex] = {
+    const tiles = (selectedCategoryPage.tiles || []).filter((_, index) => index !== tileIndex);
+    categoryPages[safeCategoryPageIndex] = {
       ...selectedCategoryPage,
-      tiles: (selectedCategoryPage.tiles || []).filter((_, index) => index !== tileIndex),
+      tiles,
     };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safeCategoryPageIndex);
+    setSelectedCategoryPageTileIndex(clamp(tileIndex - 1, 0, Math.max(tiles.length - 1, 0)));
   };
 
   const applyCategoryPagePreset = (preset: "marketplace" | "compact" | "visual" | "minimal") => {
@@ -744,7 +1036,7 @@ const StoreEditorPanel = ({
     }[preset];
 
     const categoryPages = [...categoryPageItems];
-    categoryPages[selectedCategoryPageIndex] = {
+    categoryPages[safeCategoryPageIndex] = {
       ...selectedCategoryPage,
       ...presets,
       alignment: presets.alignment as BuyerCategoryPage["alignment"],
@@ -752,6 +1044,7 @@ const StoreEditorPanel = ({
       carouselOnMobile: true,
     };
     onChange({ ...draft, categoryPages });
+    setSelectedCategoryPageIndex(safeCategoryPageIndex);
   };
 
   const updateSitePage = (index: number, key: keyof BuyerEditablePage, value: string) => {
@@ -866,7 +1159,7 @@ const StoreEditorPanel = ({
     if (!heroes[index]) return;
     heroes[index] = {
       ...heroes[index],
-      [key]: key === "durationHours" ? Number(value) || 24 : value,
+      [key]: key === "durationHours" ? Number(value) || 24 : key === "heroHeight" ? Number(value) || 400 : value,
     };
     updateHome({ heroes });
   };
@@ -877,7 +1170,7 @@ const StoreEditorPanel = ({
   ) => {
     if (draft.home.heroes.length === 0) {
       const source = { ...defaultHero, id: `hero-${Date.now()}` };
-      updateHome({ heroes: [{ ...source, [key]: key === "durationHours" ? Number(value) || 24 : value }] });
+      updateHome({ heroes: [{ ...source, [key]: key === "durationHours" ? Number(value) || 24 : key === "heroHeight" ? Number(value) || 400 : value }] });
       return;
     }
     updateHeroAt(selectedHeroIndex, key, value);
@@ -1000,7 +1293,7 @@ const StoreEditorPanel = ({
     value: string
   ) => {
     const lovedOnes = [...draft.home.lovedOnes];
-    lovedOnes[index] = { ...lovedOnes[index], [key]: value };
+    lovedOnes[index] = { ...lovedOnes[index], [key]: key === "cardHeight" ? Number(value) || 170 : value };
     updateHome({ lovedOnes });
   };
 
@@ -1028,7 +1321,7 @@ const StoreEditorPanel = ({
     value: string
   ) => {
     const brandSpotlight = [...draft.home.brandSpotlight];
-    brandSpotlight[index] = { ...brandSpotlight[index], [key]: value };
+    brandSpotlight[index] = { ...brandSpotlight[index], [key]: key === "cardHeight" ? Number(value) || 255 : value };
     updateHome({ brandSpotlight });
   };
 
@@ -1177,6 +1470,23 @@ const StoreEditorPanel = ({
     nextOrder.splice(toIndex, 0, movedSection);
     updateHome({ sectionOrder: nextOrder });
   };
+  const resetHomeSectionOrder = () => {
+    updateHome({ sectionOrder: defaultBuyerHomeSectionOrder, hiddenSections: [] });
+  };
+  const updateHomeDesign = <K extends keyof typeof homeDesign>(key: K, value: (typeof homeDesign)[K]) => {
+    updateHome({
+      design: {
+        ...homeDesign,
+        [key]: value,
+      },
+    });
+  };
+  const updateHomeDesignNumber = (key: "sectionSpacing" | "pagePadding" | "cardRadius", value: string) => {
+    updateHomeDesign(key, Number(value) || defaultBuyerHomeDesign[key]);
+  };
+  const resetHomeDesign = () => {
+    updateHome({ design: defaultBuyerHomeDesign });
+  };
   const reorderHomeSectionByDrag = (section: HideableEditorSection, dragY: number) => {
     if (Math.abs(dragY) < 24) {
       return;
@@ -1186,6 +1496,7 @@ const StoreEditorPanel = ({
   };
 
   const allSections = [
+    { key: "header" as EditorSection, label: "Header", icon: "menu-outline" as IconName, depth: 1 },
     { key: "hero" as EditorSection, label: "Hero Banner", icon: "image-outline" as IconName, depth: 1 },
     { key: "pageLabels" as EditorSection, label: "Nav Labels", icon: "menu-outline" as IconName, depth: 1 },
     { key: "promo" as EditorSection, label: "Promo Grid", icon: "grid-outline" as IconName, depth: 1 },
@@ -1196,17 +1507,20 @@ const StoreEditorPanel = ({
     { key: "category" as EditorSection, label: "Categories", icon: "images-outline" as IconName, depth: 1 },
     { key: "categoryPages" as EditorSection, label: "Category Pages", icon: "file-tray-stacked-outline" as IconName, depth: 1 },
     { key: "sitePages" as EditorSection, label: "All Pages", icon: "documents-outline" as IconName, depth: 1 },
+    { key: "footer" as EditorSection, label: "Footer", icon: "albums-outline" as IconName, depth: 1 },
   ];
   const sectionByKey = Object.fromEntries(allSections.map((section) => [section.key, section])) as Record<
     EditorSection,
     (typeof allSections)[number]
   >;
   const sections = [
+    sectionByKey.header,
     ...orderedHomeSections.map((section) => sectionByKey[section]),
     sectionByKey.sections,
     sectionByKey.sitePages,
     sectionByKey.categoryPages,
     sectionByKey.pageLabels,
+    sectionByKey.footer,
   ];
   const productCards = [
     { title: "Macbook Pro M1 Pro 14\"", image: promoItems[0]?.image || previewHero.image },
@@ -1229,24 +1543,50 @@ const StoreEditorPanel = ({
   const showMediaPreview = !isSectionHidden("mediaShowcase");
   const showCategoryPreview = !isSectionHidden("category");
   const showLovedPreview = !isSectionHidden("lovedOnes");
+  const getHomeSectionItemCount = (section: BuyerHomeSectionKey) =>
+    section === "hero"
+      ? draft.home.heroes.length
+      : section === "promo"
+        ? draft.home.promoGrid.length
+        : section === "brandSpotlight"
+          ? draft.home.brandSpotlight.length
+          : section === "category"
+            ? draft.home.visualCategories.length
+            : section === "mediaShowcase"
+              ? draft.home.mediaShowcase.items.length
+              : draft.home.lovedOnes.length;
   const getHomeSectionOrder = (section: HideableEditorSection) => orderedHomeSections.indexOf(section);
   const isPreviewDesktop = previewMode === "desktop";
+  const homeDesign = {
+    ...defaultBuyerHomeDesign,
+    ...(draft.home.design || {}),
+  };
   const canvasMaxWidth = isPreviewDesktop ? 1040 : 390;
-  const canvasPadding = isPreviewDesktop ? spacing.xl : spacing.lg;
+  const canvasPadding = isPreviewDesktop ? homeDesign.pagePadding : Math.max(16, homeDesign.pagePadding - 8);
+  const previewPanePadding = isDesktop ? spacing.lg * 2 : spacing.md * 2;
+  const previewScale =
+    isPreviewDesktop && previewPaneWidth
+      ? clamp((previewPaneWidth - previewPanePadding) / canvasMaxWidth, 0.58, 1)
+      : 1;
+  const previewCanvasWrapperWidth = isPreviewDesktop ? canvasMaxWidth * previewScale : "100%";
   const livePreviewColors = {
-    background: "#F6F8FB",
-    surface: "#FFFFFF",
-    text: "#111827",
-    muted: "#64748B",
-    border: "#E5E7EB",
-    primary: "#0B887B",
+    background: homeDesign.backgroundColor,
+    surface: homeDesign.surfaceColor,
+    text: homeDesign.textColor,
+    muted: homeDesign.mutedColor,
+    border: homeDesign.borderColor,
+    primary: homeDesign.primaryColor,
     primarySoft: "#E8F6F3",
-    heroStart: "rgba(3,7,18,0.15)",
-    heroEnd: "rgba(3,7,18,0.82)",
+    heroStart: homeDesign.heroOverlayStart,
+    heroEnd: homeDesign.heroOverlayEnd,
     dot: "#CBD5E1",
   };
   const inspectorTitle =
-    activeSection === "hero"
+    activeSection === "header"
+      ? "Header Settings"
+      : activeSection === "footer"
+        ? "Footer Settings"
+        : activeSection === "hero"
       ? "Hero Settings"
       : activeSection === "promo"
         ? "Grid Settings"
@@ -1274,7 +1614,9 @@ const StoreEditorPanel = ({
   const editorSectionLabel = sections.find((item) => item.key === activeSection)?.label || "Home page";
   const previewPageLabel =
     activeSection === "categoryPages" && selectedCategoryPage
-      ? `${selectedCategoryPage.label} page`
+      ? selectedCategoryPage.id === "for-you"
+        ? "Home page"
+        : `${selectedCategoryPage.label} page`
       : activeSection === "sitePages" && selectedSitePage
         ? `${selectedSitePage.label} page`
         : "Home page";
@@ -1287,8 +1629,8 @@ const StoreEditorPanel = ({
       setLeftPaneWidth(
         clamp(
           resizeStartRef.current.leftPaneWidth + delta,
-          196,
-          Math.min(420, editorShellWidth - inspectorReserve - 420)
+          240,
+          Math.min(340, editorShellWidth - inspectorReserve - 760)
         )
       );
       return;
@@ -1297,8 +1639,8 @@ const StoreEditorPanel = ({
     setInspectorWidth(
       clamp(
         resizeStartRef.current.inspectorWidth - delta,
-        280,
-        Math.min(560, editorShellWidth - leftPaneWidth - 420)
+        360,
+        Math.min(500, editorShellWidth - leftPaneWidth - 760)
       )
     );
   };
@@ -1347,7 +1689,8 @@ const StoreEditorPanel = ({
           justifyContent: "center",
           cursor: "col-resize" as never,
           backgroundColor: draggingSplitter === side ? "rgba(22,136,240,0.08)" : "transparent",
-        }}
+          order: side === "left" ? 1 : 3,
+        } as ViewStyle}
       >
         <View
           style={{
@@ -1381,6 +1724,24 @@ const StoreEditorPanel = ({
   }) => {
     const active = activeSection === item.key;
     const hidden = isSectionHidden(item.key);
+    const rowAccent =
+      item.key === "hero"
+        ? "#0B70D7"
+        : item.key === "promo"
+          ? "#F59E0B"
+          : item.key === "category"
+            ? "#16A34A"
+            : item.key === "mediaShowcase"
+              ? "#0B887B"
+              : item.key === "lovedOnes"
+                ? "#EF4444"
+                : item.key === "brandSpotlight"
+                  ? "#C4D600"
+                  : item.key === "sections"
+                    ? "#8B5CF6"
+                    : item.key === "categoryPages"
+                      ? "#14B8A6"
+                      : "#2563EB";
     const canAddItem =
       item.key !== "pageLabels" && item.key !== "sections" && item.key !== "categoryPages" && item.key !== "sitePages";
     const canReorder = isHideableSection(item.key);
@@ -1404,36 +1765,65 @@ const StoreEditorPanel = ({
         accessibilityRole="button"
         onPress={() => onActiveSectionChange(item.key)}
         style={{
-          minHeight: 34,
-          paddingLeft: spacing.md + item.depth * 6,
-          paddingRight: spacing.sm,
+          minHeight: 38,
+          paddingLeft: spacing.sm,
+          paddingRight: spacing.xs,
           flexDirection: "row",
           alignItems: "center",
-          gap: spacing.sm,
-          backgroundColor: active ? "#0B5ED7" : "transparent",
-          borderRadius: 8,
+          gap: spacing.xs,
+          backgroundColor: active ? "#FFFFFF" : hidden ? "#F8FAFC" : "transparent",
+          borderRadius: 10,
+          borderWidth: active ? 1 : 0,
+          borderColor: active ? "#C9DFFF" : "transparent",
           opacity: hidden ? 0.62 : 1,
+          shadowColor: active ? "#0B5ED7" : "transparent",
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: active ? 0.12 : 0,
+          shadowRadius: active ? 10 : 0,
+          elevation: active ? 2 : 0,
         }}
       >
+        <View
+          style={{
+            width: 4,
+            height: 22,
+            borderRadius: 999,
+            backgroundColor: active ? rowAccent : "transparent",
+            marginRight: 2,
+          }}
+        />
         {canReorder ? (
           <View
             {...dragResponder.panHandlers}
             style={{
-              width: 18,
-              height: 26,
+              width: 20,
+              height: 28,
               alignItems: "center",
               justifyContent: "center",
               cursor: "grab" as never,
             }}
           >
-            <Ionicons name="reorder-three-outline" size={16} color={active ? colors.white : adminColors.softMuted} />
+            <Ionicons name="reorder-three-outline" size={16} color={active ? rowAccent : adminColors.softMuted} />
           </View>
         ) : null}
-        <Ionicons name={item.icon} size={14} color={active ? colors.white : adminColors.muted} />
+        <View
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 8,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: active ? "#EFF6FF" : "#F4F7FB",
+            borderWidth: 1,
+            borderColor: active ? "#CFE1FF" : "#E8EDF3",
+          }}
+        >
+          <Ionicons name={item.icon} size={14} color={active ? rowAccent : adminColors.muted} />
+        </View>
         <Text
           style={{
             flex: 1,
-            color: active ? colors.white : adminColors.ink,
+            color: active ? "#071426" : adminColors.ink,
             fontSize: 12,
             fontWeight: active ? "900" : "800",
           }}
@@ -1448,12 +1838,19 @@ const StoreEditorPanel = ({
               event.stopPropagation();
               toggleSectionHidden(item.key as HideableEditorSection);
             }}
-            style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 7,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: active ? "#F3F8FF" : "transparent",
+            }}
           >
             <Ionicons
               name={hidden ? "eye-off-outline" : "eye-outline"}
               size={14}
-              color={active ? colors.white : hidden ? colors.danger : adminColors.softMuted}
+              color={hidden ? colors.danger : active ? rowAccent : adminColors.softMuted}
             />
           </Pressable>
         ) : null}
@@ -1466,9 +1863,9 @@ const StoreEditorPanel = ({
                 event.stopPropagation();
                 moveHomeSection(item.key as HideableEditorSection, -1);
               }}
-              style={{ width: 22, height: 24, alignItems: "center", justifyContent: "center", opacity: orderIndex <= 0 ? 0.35 : 1 }}
+              style={{ width: 22, height: 24, alignItems: "center", justifyContent: "center", opacity: orderIndex <= 0 ? 0.28 : 1 }}
             >
-              <Ionicons name="chevron-up-outline" size={13} color={active ? colors.white : adminColors.softMuted} />
+              <Ionicons name="chevron-up-outline" size={13} color={active ? rowAccent : adminColors.softMuted} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -1485,7 +1882,7 @@ const StoreEditorPanel = ({
                 opacity: orderIndex >= orderedHomeSections.length - 1 ? 0.35 : 1,
               }}
             >
-              <Ionicons name="chevron-down-outline" size={13} color={active ? colors.white : adminColors.softMuted} />
+              <Ionicons name="chevron-down-outline" size={13} color={active ? rowAccent : adminColors.softMuted} />
             </Pressable>
           </>
         ) : null}
@@ -1509,12 +1906,19 @@ const StoreEditorPanel = ({
               onActiveSectionChange(item.key);
             }
           }}
-          style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 7,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: canAddItem && active ? "#EAF2FF" : "transparent",
+          }}
         >
           <Ionicons
             name="add-outline"
             size={14}
-            color={!canAddItem ? (active ? "rgba(255,255,255,0.45)" : adminColors.lineStrong) : active ? colors.white : adminColors.softMuted}
+            color={!canAddItem ? adminColors.lineStrong : active ? rowAccent : adminColors.softMuted}
           />
         </Pressable>
       </Pressable>
@@ -1522,10 +1926,30 @@ const StoreEditorPanel = ({
   };
 
   const InspectorGroup = ({ title, children }: { title: string; children: ReactNode }) => (
-    <View style={{ gap: spacing.sm, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: adminColors.line }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ color: adminColors.muted, fontSize: 12, fontWeight: "900" }}>{title}</Text>
-        <Ionicons name="remove-outline" size={15} color={adminColors.softMuted} />
+    <View
+      style={{
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: adminColors.line,
+        backgroundColor: "#FFFFFF",
+        padding: spacing.lg,
+        gap: spacing.md,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+        <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>{title}</Text>
+        <View
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 8,
+            backgroundColor: "#F5F8FB",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name="remove-outline" size={14} color={adminColors.softMuted} />
+        </View>
       </View>
       {children}
     </View>
@@ -1555,19 +1979,17 @@ const StoreEditorPanel = ({
     <View
       style={{
         flex: 1,
-        height: 34,
-        borderRadius: 7,
+        minHeight: 56,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: adminColors.line,
-        backgroundColor: "#FAFBFC",
-        paddingHorizontal: spacing.sm,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
+        backgroundColor: "#F8FAFC",
+        padding: spacing.md,
+        justifyContent: "center",
       }}
     >
-      <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "800" }}>{value}</Text>
-      <Text style={{ color: adminColors.muted, fontSize: 11 }}>{label}</Text>
+      <Text style={{ color: adminColors.ink, fontSize: 18, fontWeight: "900" }}>{value}</Text>
+      <Text style={{ color: adminColors.muted, fontSize: 11, fontWeight: "800", marginTop: 2 }}>{label}</Text>
     </View>
   );
 
@@ -1747,17 +2169,21 @@ const StoreEditorPanel = ({
   const EasyEditorCard = ({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) => (
     <View
       style={{
-        borderRadius: 10,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: adminColors.line,
-        backgroundColor: "#FBFCFD",
-        padding: spacing.md,
-        gap: spacing.md,
+        backgroundColor: colors.white,
+        padding: spacing.lg,
+        gap: spacing.lg,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.04,
+        shadowRadius: 14,
       }}
     >
       <View>
-        <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>{title}</Text>
-        {subtitle ? <Text style={{ color: adminColors.muted, fontSize: 11, marginTop: 3 }}>{subtitle}</Text> : null}
+        <Text style={{ color: adminColors.ink, fontSize: 14, fontWeight: "900" }}>{title}</Text>
+        {subtitle ? <Text style={{ color: adminColors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 }}>{subtitle}</Text> : null}
       </View>
       {children}
     </View>
@@ -1793,6 +2219,40 @@ const StoreEditorPanel = ({
             </Text>
           </View>
           <ActionButton label="Reset" icon="refresh-outline" ghost onPress={restoreCategoryPages} />
+        </View>
+
+        <View
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#BFE7E3",
+            backgroundColor: "#ECFDF9",
+            padding: spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+          }}
+        >
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              backgroundColor: selectedCategoryPage.accent,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name={selectedCategoryPage.icon as IconName} size={19} color={colors.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }} numberOfLines={1}>
+              Editing {selectedCategoryPage.label}
+            </Text>
+            <Text style={{ color: adminColors.muted, fontSize: 11, lineHeight: 16, marginTop: 2 }} numberOfLines={2}>
+              Main home is separate. Category changes here update the top navigation category page only.
+            </Text>
+          </View>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
@@ -1908,7 +2368,7 @@ const StoreEditorPanel = ({
                   backgroundColor: colors.white,
                 }}
               >
-                <Image source={{ uri: banner.image }} resizeMode="cover" style={{ width: "100%", height: 46 }} />
+                <Image source={{ uri: banner.image }} resizeMode="contain" style={{ width: "100%", height: 46, backgroundColor: colors.white }} />
                 <Text style={{ color: adminColors.ink, fontSize: 10, fontWeight: "900", padding: 5 }} numberOfLines={1}>
                   {index + 1}. {banner.title}
                 </Text>
@@ -2088,8 +2548,11 @@ const StoreEditorPanel = ({
     const previewPaddingTop = selectedCategoryPage.paddingTop ?? 24;
     const previewPaddingBottom = selectedCategoryPage.paddingBottom ?? 48;
     const previewTileSize = selectedCategoryPage.tileSize || 106;
-    const previewBannerHeight = selectedCategoryPage.bannerHeight || 247;
     const previewAlignment = selectedCategoryPage.alignment || "left";
+    const previewBannerGap = spacing.md;
+    const previewBannerWidth = isPreviewDesktop
+      ? 460
+      : 292;
 
     return (
       <View>
@@ -2151,30 +2614,56 @@ const StoreEditorPanel = ({
           })}
         </ScrollView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg }}>
-          {banners.map((banner, index) => (
-            <Pressable
-              accessibilityRole="button"
-              key={banner.id}
-              onPress={() => {
-                setSelectedCategoryPageBannerIndex(index);
-                onActiveSectionChange("categoryPages");
-              }}
-              style={{
-                width: isPreviewDesktop ? (index === 1 ? 400 : 360) : 292,
-                height: isPreviewDesktop ? previewBannerHeight * 0.85 : Math.max(120, previewBannerHeight * 0.6),
-                borderRadius: 14,
-                overflow: "hidden",
-                marginRight: spacing.xl,
-                backgroundColor: livePreviewColors.surface,
-                borderWidth: selectedCategoryPageBannerIndex === index ? 2 : 1,
-                borderColor: selectedCategoryPageBannerIndex === index ? "#1688F0" : livePreviewColors.border,
-              }}
-            >
-              <Image source={{ uri: banner.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
-            </Pressable>
-          ))}
-        </ScrollView>
+        {isPreviewDesktop ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: previewBannerGap, paddingTop: spacing.lg }}>
+            {banners.map((banner, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={banner.id}
+                onPress={() => {
+                  setSelectedCategoryPageBannerIndex(index);
+                  onActiveSectionChange("categoryPages");
+                }}
+                style={{
+                  width: previewBannerWidth,
+                  aspectRatio: CATEGORY_BANNER_ASPECT_RATIO,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  backgroundColor: colors.white,
+                  borderWidth: selectedCategoryPageBannerIndex === index ? 2 : 1,
+                  borderColor: selectedCategoryPageBannerIndex === index ? "#1688F0" : livePreviewColors.border,
+                }}
+              >
+                <Image source={{ uri: banner.image }} resizeMode="contain" style={{ width: "100%", height: "100%", backgroundColor: colors.white }} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg }}>
+            {banners.map((banner, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={banner.id}
+                onPress={() => {
+                  setSelectedCategoryPageBannerIndex(index);
+                  onActiveSectionChange("categoryPages");
+                }}
+                style={{
+                  width: 292,
+                  aspectRatio: CATEGORY_BANNER_ASPECT_RATIO,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  marginRight: spacing.xl,
+                  backgroundColor: colors.white,
+                  borderWidth: selectedCategoryPageBannerIndex === index ? 2 : 1,
+                  borderColor: selectedCategoryPageBannerIndex === index ? "#1688F0" : livePreviewColors.border,
+                }}
+              >
+                <Image source={{ uri: banner.image }} resizeMode="contain" style={{ width: "100%", height: "100%", backgroundColor: colors.white }} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
 
         {banners.length > 1 ? (
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: spacing.xs }}>
@@ -2193,29 +2682,69 @@ const StoreEditorPanel = ({
         ) : null}
 
         {tiles.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xl }}>
-            {tiles.map((tile, index) => (
-              <Pressable
-                accessibilityRole="button"
-                key={tile.id}
-                onPress={() => {
-                  setSelectedCategoryPageTileIndex(index);
-                  onActiveSectionChange("categoryPages");
-                }}
-                style={{
-                  width: isPreviewDesktop ? previewTileSize : Math.max(68, previewTileSize - 20),
-                  marginRight: previewHorizontalGap,
-                  alignItems: "center",
-                  borderWidth: selectedCategoryPageTileIndex === index ? 2 : 0,
-                  borderColor: "#1688F0",
-                  borderRadius: 12,
-                  padding: selectedCategoryPageTileIndex === index ? 3 : 0,
-                }}
-              >
+          isPreviewDesktop ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: previewHorizontalGap, paddingTop: spacing.xl }}>
+              {tiles.map((tile, index) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={tile.id}
+                  onPress={() => {
+                    setSelectedCategoryPageTileIndex(index);
+                    onActiveSectionChange("categoryPages");
+                  }}
+                  style={{
+                    width: previewTileSize,
+                    alignItems: "center",
+                    borderWidth: selectedCategoryPageTileIndex === index ? 2 : 0,
+                    borderColor: "#1688F0",
+                    borderRadius: 12,
+                    padding: selectedCategoryPageTileIndex === index ? 3 : 0,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: previewTileSize - 8,
+                      height: previewTileSize - 8,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      backgroundColor: "#FFF7C7",
+                    }}
+                  >
+                    <Image source={{ uri: tile.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: livePreviewColors.text, fontSize: 11, fontWeight: "800", marginTop: spacing.xs, textAlign: "center" }}
+                  >
+                  {tile.label}
+                </Text>
+              </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xl }}>
+              {tiles.map((tile, index) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={tile.id}
+                  onPress={() => {
+                    setSelectedCategoryPageTileIndex(index);
+                    onActiveSectionChange("categoryPages");
+                  }}
+                  style={{
+                    width: Math.max(68, previewTileSize - 20),
+                    marginRight: previewHorizontalGap,
+                    alignItems: "center",
+                    borderWidth: selectedCategoryPageTileIndex === index ? 2 : 0,
+                    borderColor: "#1688F0",
+                    borderRadius: 12,
+                    padding: selectedCategoryPageTileIndex === index ? 3 : 0,
+                  }}
+                >
                 <View
                   style={{
-                    width: isPreviewDesktop ? previewTileSize - 8 : Math.max(62, previewTileSize - 28),
-                    height: isPreviewDesktop ? previewTileSize - 8 : Math.max(62, previewTileSize - 28),
+                    width: Math.max(62, previewTileSize - 28),
+                    height: Math.max(62, previewTileSize - 28),
                     borderRadius: 10,
                     overflow: "hidden",
                     backgroundColor: "#FFF7C7",
@@ -2230,8 +2759,9 @@ const StoreEditorPanel = ({
                   {tile.label}
                 </Text>
               </Pressable>
-            ))}
-          </ScrollView>
+              ))}
+            </ScrollView>
+          )
         ) : null}
 
         <Pressable
@@ -2259,34 +2789,60 @@ const StoreEditorPanel = ({
           >
             {selectedCategoryPage.highlightTitle || selectedCategoryPage.featuredTitle}
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {categoryPreviewProducts.slice(0, previewProductCount).map((product) => (
-              <View
-                key={product.title}
-                style={{
-                  width: isPreviewDesktop
-                    ? Math.max(132, 720 / Math.max(selectedCategoryPage.columns || 4, 1))
-                    : Math.max(132, 300 / Math.max(selectedCategoryPage.mobileColumns || 2, 1)),
-                  borderRadius: 10,
-                  backgroundColor: colors.white,
-                  padding: spacing.xs,
-                  marginRight: previewHorizontalGap,
-                  borderWidth: 1,
-                  borderColor: "rgba(15,23,42,0.08)",
-                }}
-              >
-                <View style={{ height: isPreviewDesktop ? 160 : 132, borderRadius: 8, overflow: "hidden", backgroundColor: "#EEF2F7" }}>
-                  <Image source={{ uri: product.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+          {isPreviewDesktop ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: previewHorizontalGap }}>
+              {categoryPreviewProducts.slice(0, previewProductCount).map((product) => (
+                <View
+                  key={product.title}
+                  style={{
+                    width: Math.max(132, 720 / Math.max(selectedCategoryPage.columns || 4, 1)),
+                    borderRadius: 10,
+                    backgroundColor: colors.white,
+                    padding: spacing.xs,
+                    borderWidth: 1,
+                    borderColor: "rgba(15,23,42,0.08)",
+                  }}
+                >
+                  <View style={{ height: 160, borderRadius: 8, overflow: "hidden", backgroundColor: "#EEF2F7" }}>
+                    <Image source={{ uri: product.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                  </View>
+                  <Text style={{ color: livePreviewColors.muted, marginTop: spacing.sm, fontSize: 12 }} numberOfLines={1}>
+                    {product.title}
+                  </Text>
+                  <Text style={{ color: livePreviewColors.text, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>
+                    {selectedCategoryPage.productCardCta || "View Store"}
+                  </Text>
                 </View>
-                <Text style={{ color: livePreviewColors.muted, marginTop: spacing.sm, fontSize: 12 }} numberOfLines={1}>
-                  {product.title}
-                </Text>
-                <Text style={{ color: livePreviewColors.text, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>
-                  {selectedCategoryPage.productCardCta || "View Store"}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
+              ))}
+            </ScrollView>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {categoryPreviewProducts.slice(0, previewProductCount).map((product) => (
+                <View
+                  key={product.title}
+                  style={{
+                    width: Math.max(132, 300 / Math.max(selectedCategoryPage.mobileColumns || 2, 1)),
+                    borderRadius: 10,
+                    backgroundColor: colors.white,
+                    padding: spacing.xs,
+                    marginRight: previewHorizontalGap,
+                    borderWidth: 1,
+                    borderColor: "rgba(15,23,42,0.08)",
+                  }}
+                >
+                  <View style={{ height: 132, borderRadius: 8, overflow: "hidden", backgroundColor: "#EEF2F7" }}>
+                    <Image source={{ uri: product.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+                  </View>
+                  <Text style={{ color: livePreviewColors.muted, marginTop: spacing.sm, fontSize: 12 }} numberOfLines={1}>
+                    {product.title}
+                  </Text>
+                  <Text style={{ color: livePreviewColors.text, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>
+                    {selectedCategoryPage.productCardCta || "View Store"}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </Pressable>
       </View>
     );
@@ -2405,14 +2961,8 @@ const StoreEditorPanel = ({
                     onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "tileSize", value)}
                   />
                 </ModernSettingRow>
-                <ModernSettingRow label="Banner height">
-                  <ModernNumberControl
-                    value={selectedCategoryPage.bannerHeight || 247}
-                    min={120}
-                    max={360}
-                    unit="px"
-                    onChange={(value) => updateCategoryPage(selectedCategoryPageIndex, "bannerHeight", value)}
-                  />
+                <ModernSettingRow label="Banner ratio">
+                  <ModernSelect value="115:56 fixed" icon="resize-outline" />
                 </ModernSettingRow>
                 <ModernSettingRow label="Color scheme">
                   <ModernSelect value={selectedCategoryPage.colorScheme || "Scheme 1"} icon="text-outline" />
@@ -2754,19 +3304,127 @@ const StoreEditorPanel = ({
         </Panel>
       ) : null}
 
+      {activeSection === "header" ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Header Editor</Text>
+          <EditorField
+            label="Announcement Bar"
+            value={draft.header.announcement}
+            onChangeText={(value) => updateHeader({ announcement: value })}
+          />
+          <EditorField
+            label="Logo Text"
+            value={draft.header.logoText}
+            onChangeText={(value) => updateHeader({ logoText: value })}
+          />
+          <EditorField
+            label="Search Placeholder"
+            value={draft.header.searchPlaceholder}
+            onChangeText={(value) => updateHeader({ searchPlaceholder: value })}
+          />
+          <EditorField
+            label="Navigation Links (comma separated)"
+            value={draft.header.navLinks.join(", ")}
+            onChangeText={updateHeaderNavLinks}
+          />
+          <EditorColorField
+            label="Header Background"
+            value={draft.header.backgroundColor}
+            onChangeText={(value) => updateHeader({ backgroundColor: value })}
+          />
+          <EditorColorField
+            label="Header Text"
+            value={draft.header.textColor}
+            onChangeText={(value) => updateHeader({ textColor: value })}
+          />
+          <EditorColorField
+            label="Logo / Accent"
+            value={draft.header.accentColor}
+            onChangeText={(value) => updateHeader({ accentColor: value })}
+          />
+        </Panel>
+      ) : null}
+
+      {activeSection === "footer" ? (
+        <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+          <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Footer Editor</Text>
+          <EditorField
+            label="Footer Heading"
+            value={draft.footer.heading}
+            onChangeText={(value) => updateFooter({ heading: value })}
+          />
+          <EditorField
+            label="Mail Address"
+            value={draft.footer.mailAddress}
+            onChangeText={(value) => updateFooter({ mailAddress: value })}
+            multiline
+          />
+          <EditorField
+            label="Office Address"
+            value={draft.footer.officeAddress}
+            onChangeText={(value) => updateFooter({ officeAddress: value })}
+            multiline
+          />
+          <EditorField
+            label="Quick Links (comma separated)"
+            value={draft.footer.quickLinks.join(", ")}
+            onChangeText={updateFooterQuickLinks}
+          />
+          <EditorField
+            label="Copyright"
+            value={draft.footer.copyright}
+            onChangeText={(value) => updateFooter({ copyright: value })}
+          />
+          <EditorColorField
+            label="Footer Background"
+            value={draft.footer.backgroundColor}
+            onChangeText={(value) => updateFooter({ backgroundColor: value })}
+          />
+          <EditorColorField
+            label="Footer Text"
+            value={draft.footer.textColor}
+            onChangeText={(value) => updateFooter({ textColor: value })}
+          />
+          <EditorColorField
+            label="Muted Text"
+            value={draft.footer.mutedColor}
+            onChangeText={(value) => updateFooter({ mutedColor: value })}
+          />
+        </Panel>
+      ) : null}
+
       {activeSection === "hero" ? (
-        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+        <Panel style={{ padding: spacing.md, gap: spacing.md }}>
           {draft.home.heroes.length > 0 && selectedHero ? (
             <>
               <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Editing Hero {selectedHeroIndex + 1} of {draft.home.heroes.length}</Text>
+              <ToggleRow
+                label="Hero banner enabled"
+                value={!isSectionHidden("hero")}
+                onToggle={() => toggleSectionHidden("hero")}
+              />
               <EditorField label="Eyebrow" value={selectedHero.eyebrow} onChangeText={(value) => updateHero("eyebrow", value)} />
               <EditorField label="Headline" value={selectedHero.title} onChangeText={(value) => updateHero("title", value)} multiline />
               <EditorField label="Subtitle" value={selectedHero.subtitle} onChangeText={(value) => updateHero("subtitle", value)} multiline />
               <EditorField label="Offer Button" value={selectedHero.offer} onChangeText={(value) => updateHero("offer", value)} />
-              <EditorField label="Image URL" value={selectedHero.image} onChangeText={(value) => updateHero("image", value)} multiline />
+              <EditorImageField
+                label="Image URL"
+                value={selectedHero.image}
+                onChangeText={(value) => updateHero("image", value)}
+                uploading={uploadingImageKey === `hero-${selectedHero.id}`}
+                onUpload={() => pickAndUploadImage(`hero-${selectedHero.id}`, (url) => updateHero("image", url))}
+              />
               <EditorField label="Category Route" value={selectedHero.category} onChangeText={(value) => updateHero("category", value)} />
-              <EditorField label="Accent Color" value={selectedHero.accent} onChangeText={(value) => updateHero("accent", value)} />
               <EditorField label="Countdown Hours" value={`${selectedHero.durationHours || 24}`} onChangeText={(value) => updateHero("durationHours", value)} />
+              <EditorColorField label="Banner Background" value={selectedHero.bannerBackground || "#FFFFFF"} onChangeText={(value) => updateHero("bannerBackground", value)} />
+              <EditorColorField label="Headline Color" value={selectedHero.textColor || "#FFFFFF"} onChangeText={(value) => updateHero("textColor", value)} />
+              <EditorColorField label="Subtitle Color" value={selectedHero.subtitleColor || "rgba(255,255,255,0.82)"} onChangeText={(value) => updateHero("subtitleColor", value)} />
+              <EditorColorField label="Eyebrow Color" value={selectedHero.eyebrowColor || "#FFFFFF"} onChangeText={(value) => updateHero("eyebrowColor", value)} />
+              <EditorColorField label="Accent / Dot Color" value={selectedHero.accent} onChangeText={(value) => updateHero("accent", value)} />
+              <EditorColorField label="Offer Button Color" value={selectedHero.offerButtonColor || selectedHero.accent} onChangeText={(value) => updateHero("offerButtonColor", value)} />
+              <EditorColorField label="Offer Button Text Color" value={selectedHero.offerTextColor || "#111827"} onChangeText={(value) => updateHero("offerTextColor", value)} />
+              <EditorField label="Overlay Start" value={selectedHero.overlayStart || livePreviewColors.heroStart} onChangeText={(value) => updateHero("overlayStart", value)} />
+              <EditorField label="Overlay End" value={selectedHero.overlayEnd || livePreviewColors.heroEnd} onChangeText={(value) => updateHero("overlayEnd", value)} />
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <ActionButton label="Add Slide" icon="add-outline" ghost onPress={addHero} />
                 <ActionButton label="Remove" icon="trash-outline" tone={colors.danger} ghost onPress={removeHero} />
@@ -2812,14 +3470,33 @@ const StoreEditorPanel = ({
       ) : null}
 
       {activeSection === "brandSpotlight" && selectedBrand ? (
-        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+        <Panel style={{ padding: spacing.md, gap: spacing.md }}>
           <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Editing Brand Card {selectedBrandIndex + 1}</Text>
+          <ToggleRow
+            label="Brands spotlight enabled"
+            value={!isSectionHidden("brandSpotlight")}
+            onToggle={() => toggleSectionHidden("brandSpotlight")}
+          />
           <EditorField label="Brand Name" value={selectedBrand.brand} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "brand", value)} />
           <EditorField label="Offer Title" value={selectedBrand.title} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "title", value)} />
           <EditorField label="Subtitle" value={selectedBrand.subtitle} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "subtitle", value)} />
-          <EditorField label="Image URL" value={selectedBrand.image} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "image", value)} multiline />
+          <EditorImageField
+            label="Image URL"
+            value={selectedBrand.image}
+            onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "image", value)}
+            uploading={uploadingImageKey === `brand-${selectedBrand.id}`}
+            onUpload={() => pickAndUploadImage(`brand-${selectedBrand.id}`, (url) => updateBrandSpotlight(selectedBrandIndex, "image", url))}
+          />
           <EditorField label="Category Route" value={selectedBrand.category} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "category", value)} />
           <EditorField label="Badge" value={selectedBrand.badge || ""} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "badge", value)} />
+          <EditorField label="Card Height" value={`${selectedBrand.cardHeight || 255}`} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "cardHeight", value)} />
+          <EditorColorField label="Card Background" value={selectedBrand.cardBackground || "#FFFFFF"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "cardBackground", value)} />
+          <EditorColorField label="Brand Name Color" value={selectedBrand.brandColor || "#FFFFFF"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "brandColor", value)} />
+          <EditorColorField label="Offer Bar Color" value={selectedBrand.titleBarColor || "#F4FF00"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "titleBarColor", value)} />
+          <EditorColorField label="Offer Title Color" value={selectedBrand.titleColor || "#050505"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "titleColor", value)} />
+          <EditorColorField label="Subtitle Color" value={selectedBrand.subtitleColor || livePreviewColors.text} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "subtitleColor", value)} />
+          <EditorColorField label="Badge Background" value={selectedBrand.badgeBackground || "rgba(255,255,255,0.58)"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "badgeBackground", value)} />
+          <EditorColorField label="Badge Text Color" value={selectedBrand.badgeTextColor || "#FFFFFF"} onChangeText={(value) => updateBrandSpotlight(selectedBrandIndex, "badgeTextColor", value)} />
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <ActionButton label="Add" icon="add-outline" ghost onPress={addBrandSpotlight} />
             <ActionButton label="Remove" icon="trash-outline" tone={colors.danger} ghost onPress={removeBrandSpotlight} />
@@ -2944,12 +3621,30 @@ const StoreEditorPanel = ({
       ) : null}
 
       {activeSection === "lovedOnes" && selectedLoved ? (
-        <Panel style={{ padding: spacing.md, gap: spacing.sm }}>
+        <Panel style={{ padding: spacing.md, gap: spacing.md }}>
           <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Editing Loved One {selectedLovedIndex + 1}</Text>
+          <ToggleRow
+            label="Loved ones section enabled"
+            value={!isSectionHidden("lovedOnes")}
+            onToggle={() => toggleSectionHidden("lovedOnes")}
+          />
+          <EditorField label="Loved Ones Heading" value={draft.home.lovedOnesTitle} onChangeText={(value) => updateHome({ lovedOnesTitle: value })} />
           <EditorField label="Title" value={selectedLoved.title} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "title", value)} />
           <EditorField label="Subtitle" value={selectedLoved.subtitle} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "subtitle", value)} />
-          <EditorField label="Image URL" value={selectedLoved.image} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "image", value)} multiline />
+          <EditorImageField
+            label="Image URL"
+            value={selectedLoved.image}
+            onChangeText={(value) => updateLovedOne(selectedLovedIndex, "image", value)}
+            uploading={uploadingImageKey === `loved-${selectedLoved.id}`}
+            onUpload={() => pickAndUploadImage(`loved-${selectedLoved.id}`, (url) => updateLovedOne(selectedLovedIndex, "image", url))}
+          />
           <EditorField label="Category Route" value={selectedLoved.category} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "category", value)} />
+          <EditorField label="Card Height" value={`${selectedLoved.cardHeight || 170}`} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "cardHeight", value)} />
+          <EditorColorField label="Card Background" value={selectedLoved.cardBackground || livePreviewColors.primary} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "cardBackground", value)} />
+          <EditorColorField label="Title Color" value={selectedLoved.titleColor || "#FFFFFF"} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "titleColor", value)} />
+          <EditorColorField label="Subtitle Color" value={selectedLoved.subtitleColor || "rgba(255,255,255,0.84)"} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "subtitleColor", value)} />
+          <EditorField label="Overlay Start" value={selectedLoved.overlayStart || "rgba(0,30,80,0.08)"} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "overlayStart", value)} />
+          <EditorField label="Overlay End" value={selectedLoved.overlayEnd || "rgba(0,34,90,0.82)"} onChangeText={(value) => updateLovedOne(selectedLovedIndex, "overlayEnd", value)} />
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <ActionButton label="Add" icon="add-outline" ghost onPress={addLovedOne} />
             <ActionButton label="Remove" icon="trash-outline" tone={colors.danger} ghost onPress={removeLovedOne} />
@@ -2969,11 +3664,127 @@ const StoreEditorPanel = ({
 
       {activeSection === "sections" ? (
         <>
-          <EditorField label="Loved Ones Heading" value={draft.home.lovedOnesTitle} onChangeText={(value) => updateHome({ lovedOnesTitle: value })} />
-          <EditorField label="Deals Heading" value={draft.home.dealsTitle} onChangeText={(value) => updateHome({ dealsTitle: value })} />
-          <EditorField label="Deals Action" value={draft.home.dealsActionLabel} onChangeText={(value) => updateHome({ dealsActionLabel: value })} />
-          <EditorField label="Featured Heading" value={draft.home.featuredTitle} onChangeText={(value) => updateHome({ featuredTitle: value })} />
-          <EditorField label="Featured Action" value={draft.home.featuredActionLabel} onChangeText={(value) => updateHome({ featuredActionLabel: value })} />
+          <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Advanced Studio</Text>
+                <Text style={{ color: adminColors.muted, fontSize: 12, marginTop: 4 }}>
+                  Control the full home-page system from one place.
+                </Text>
+              </View>
+              <ActionButton label="Reset" icon="refresh-outline" ghost onPress={resetHomeDesign} />
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+              {[
+                { label: "Visible", value: `${visibleHomeSectionCount}` },
+                { label: "Hidden", value: `${hiddenSections.length}` },
+                { label: "Items", value: `${totalEditableItems}` },
+              ].map((item) => (
+                <View
+                  key={item.label}
+                  style={{
+                    minWidth: 88,
+                    flex: 1,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: adminColors.line,
+                    backgroundColor: "#F8FAFC",
+                    padding: spacing.sm,
+                  }}
+                >
+                  <Text style={{ color: adminColors.muted, fontSize: 10, fontWeight: "800" }}>{item.label}</Text>
+                  <Text style={{ color: adminColors.ink, fontSize: 16, fontWeight: "900", marginTop: 3 }}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+          </Panel>
+
+          <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+            <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Theme Tokens</Text>
+            <EditorColorField label="Page Background" value={homeDesign.backgroundColor} onChangeText={(value) => updateHomeDesign("backgroundColor", value)} />
+            <EditorColorField label="Surface Color" value={homeDesign.surfaceColor} onChangeText={(value) => updateHomeDesign("surfaceColor", value)} />
+            <EditorColorField label="Text Color" value={homeDesign.textColor} onChangeText={(value) => updateHomeDesign("textColor", value)} />
+            <EditorColorField label="Muted Text" value={homeDesign.mutedColor} onChangeText={(value) => updateHomeDesign("mutedColor", value)} />
+            <EditorColorField label="Primary Accent" value={homeDesign.primaryColor} onChangeText={(value) => updateHomeDesign("primaryColor", value)} />
+            <EditorColorField label="Border Color" value={homeDesign.borderColor} onChangeText={(value) => updateHomeDesign("borderColor", value)} />
+            <EditorField label="Hero Overlay Start" value={homeDesign.heroOverlayStart} onChangeText={(value) => updateHomeDesign("heroOverlayStart", value)} />
+            <EditorField label="Hero Overlay End" value={homeDesign.heroOverlayEnd} onChangeText={(value) => updateHomeDesign("heroOverlayEnd", value)} />
+          </Panel>
+
+          <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+            <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Layout System</Text>
+            <EditorField label="Page Padding" value={`${homeDesign.pagePadding}`} onChangeText={(value) => updateHomeDesignNumber("pagePadding", value)} />
+            <EditorField label="Section Spacing" value={`${homeDesign.sectionSpacing}`} onChangeText={(value) => updateHomeDesignNumber("sectionSpacing", value)} />
+            <EditorField label="Card Radius" value={`${homeDesign.cardRadius}`} onChangeText={(value) => updateHomeDesignNumber("cardRadius", value)} />
+          </Panel>
+
+          <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm }}>
+              <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Section Manager</Text>
+              <ActionButton label="Reset Order" icon="refresh-outline" ghost onPress={resetHomeSectionOrder} />
+            </View>
+            {orderedHomeSections.map((section, index) => {
+              const meta = sectionByKey[section];
+              const hidden = isSectionHidden(section);
+
+              return (
+                <View
+                  key={section}
+                  style={{
+                    minHeight: 44,
+                    borderRadius: 11,
+                    borderWidth: 1,
+                    borderColor: hidden ? "#FECACA" : adminColors.line,
+                    backgroundColor: hidden ? "#FFF7F7" : "#F8FAFC",
+                    paddingHorizontal: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                  }}
+                >
+                  <View style={{ width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: colors.white }}>
+                    <Ionicons name={meta.icon} size={15} color={hidden ? colors.danger : selectedAccent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "900" }} numberOfLines={1}>
+                      {meta.label}
+                    </Text>
+                    <Text style={{ color: adminColors.muted, fontSize: 10, fontWeight: "700" }}>
+                      {getHomeSectionItemCount(section)} items
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon={hidden ? "eye-off-outline" : "eye-outline"}
+                    color={hidden ? colors.danger : adminColors.muted}
+                    backgroundColor={colors.white}
+                    onPress={() => toggleSectionHidden(section)}
+                  />
+                  <IconButton
+                    icon="chevron-up-outline"
+                    backgroundColor={colors.white}
+                    disabled={index === 0}
+                    onPress={() => moveHomeSection(section, -1)}
+                  />
+                  <IconButton
+                    icon="chevron-down-outline"
+                    backgroundColor={colors.white}
+                    disabled={index === orderedHomeSections.length - 1}
+                    onPress={() => moveHomeSection(section, 1)}
+                  />
+                </View>
+              );
+            })}
+          </Panel>
+
+          <Panel style={{ padding: spacing.md, gap: spacing.md }}>
+            <Text style={{ color: adminColors.ink, fontWeight: "900" }}>Headings</Text>
+            <EditorField label="Loved Ones Heading" value={draft.home.lovedOnesTitle} onChangeText={(value) => updateHome({ lovedOnesTitle: value })} />
+            <EditorField label="Deals Heading" value={draft.home.dealsTitle} onChangeText={(value) => updateHome({ dealsTitle: value })} />
+            <EditorField label="Deals Action" value={draft.home.dealsActionLabel} onChangeText={(value) => updateHome({ dealsActionLabel: value })} />
+            <EditorField label="Featured Heading" value={draft.home.featuredTitle} onChangeText={(value) => updateHome({ featuredTitle: value })} />
+            <EditorField label="Featured Action" value={draft.home.featuredActionLabel} onChangeText={(value) => updateHome({ featuredActionLabel: value })} />
+          </Panel>
         </>
       ) : null}
     </>
@@ -3138,76 +3949,171 @@ const StoreEditorPanel = ({
             borderColor: adminColors.line,
             backgroundColor: colors.white,
             flexDirection: "row",
-          }}
+            flexShrink: 0,
+            order: 0,
+          } as ViewStyle}
         >
           {isDesktop ? (
             <View
               style={{
-                width: 52,
+                width: 58,
                 alignItems: "center",
-                paddingVertical: spacing.md,
-                gap: spacing.md,
+                paddingVertical: spacing.lg,
+                gap: spacing.sm,
                 borderRightWidth: 1,
-                borderRightColor: adminColors.line,
+                borderRightColor: "#D8E0EA",
+                backgroundColor: "#F7FAFD",
               }}
             >
               {[
-                "menu-outline",
-                "browsers-outline",
-                "brush-outline",
-                "code-slash-outline",
-                "settings-outline",
-              ].map((icon, index) => (
+                { icon: "menu-outline" as IconName, active: false, run: () => setLeftPaneWidth((value) => (value <= 92 ? 286 : 92)) },
+                { icon: "browsers-outline" as IconName, active: activeSection === "hero", run: () => onActiveSectionChange("hero") },
+                { icon: "brush-outline" as IconName, active: inspectorOpen, run: () => setInspectorOpen((value) => !value) },
+                { icon: "code-slash-outline" as IconName, active: activeSection === "sections", run: () => onActiveSectionChange("sections") },
+                { icon: "settings-outline" as IconName, active: inspectorOpen, run: () => setInspectorOpen((value) => !value) },
+              ].map((item) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={item.icon}
+                  onPress={item.run}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: item.active ? "#130B20" : "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: item.active ? "#2A173B" : "#E3EAF2",
+                    shadowColor: item.active ? "#130B20" : "#7C8A9A",
+                    shadowOffset: { width: 0, height: item.active ? 5 : 3 },
+                    shadowOpacity: item.active ? 0.22 : 0.11,
+                    shadowRadius: item.active ? 9 : 6,
+                    elevation: item.active ? 4 : 2,
+                  }}
+                >
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 3,
+                      left: 5,
+                      right: 5,
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: item.active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.78)",
+                    }}
+                  />
+                  <Ionicons name={item.icon} size={18} color={item.active ? colors.white : "#334155"} />
+                </Pressable>
+              ))}
+              <View style={{ flex: 1 }} />
+              {["help-circle-outline", "apps-outline"].map((icon) => (
                 <View
                   key={icon}
                   style={{
                     width: 30,
                     height: 30,
-                    borderRadius: 7,
+                    borderRadius: 10,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: index === 1 ? "#12081F" : "transparent",
+                    backgroundColor: "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: "#E4EBF3",
                   }}
                 >
-                  <Ionicons name={icon as IconName} size={16} color={index === 1 ? colors.white : adminColors.muted} />
+                  <Ionicons name={icon as IconName} size={16} color={adminColors.muted} />
                 </View>
               ))}
-              <View style={{ flex: 1 }} />
-              <Ionicons name="help-circle-outline" size={18} color={adminColors.muted} />
-              <Ionicons name="apps-outline" size={18} color={adminColors.muted} />
             </View>
           ) : null}
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
-            <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}>
+          <ScrollView style={{ flex: 1, backgroundColor: "#FBFCFE" }} contentContainerStyle={{ padding: spacing.sm, gap: spacing.sm }}>
+            <View
+              style={{
+                borderRadius: 12,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1,
+                borderColor: "#E5ECF4",
+                shadowColor: "#94A3B8",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 1,
+              }}
+            >
               <Text style={{ color: adminColors.ink, fontSize: 14, fontWeight: "900" }}>{previewPageLabel}</Text>
             </View>
 
-            <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: adminColors.line, padding: spacing.md, gap: spacing.sm }}>
+            <View
+              style={{
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#E4EBF3",
+                backgroundColor: "#FFFFFF",
+                padding: spacing.md,
+                gap: spacing.sm,
+                shadowColor: "#94A3B8",
+                shadowOffset: { width: 0, height: 5 },
+                shadowOpacity: 0.08,
+                shadowRadius: 10,
+                elevation: 2,
+              }}
+            >
               <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>Header</Text>
               {[
                 { label: "Announcement bar", icon: "megaphone-outline" as IconName },
                 { label: "Header", icon: "menu-outline" as IconName },
               ].map((item) => (
-                <View key={item.label} style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                  <Ionicons name="chevron-forward" size={13} color={adminColors.softMuted} />
-                  <Ionicons name={item.icon} size={14} color={adminColors.muted} />
+                <Pressable
+                  accessibilityRole="button"
+                  key={item.label}
+                  onPress={() => onActiveSectionChange("header")}
+                  style={{
+                    minHeight: 32,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                    backgroundColor: activeSection === "header" ? "#FFFFFF" : "#F8FAFC",
+                    borderWidth: 1,
+                    borderColor: activeSection === "header" ? "#C9DFFF" : "#EEF2F7",
+                  }}
+                >
+                  <Ionicons name="chevron-forward" size={13} color={activeSection === "header" ? "#0B5ED7" : adminColors.softMuted} />
+                  <Ionicons name={item.icon} size={14} color={activeSection === "header" ? "#0B5ED7" : adminColors.muted} />
                   <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "700" }}>{item.label}</Text>
-                </View>
+                </Pressable>
               ))}
               <Pressable
                 accessibilityRole="button"
                 onPress={addActiveSectionItem}
-                style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: spacing.sm }}
+                style={{ minHeight: 30, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: "#F0F7FF" }}
               >
                 <Ionicons name="add-circle-outline" size={15} color="#0B5ED7" />
                 <Text style={{ color: "#0B5ED7", fontSize: 12, fontWeight: "800" }}>Add section</Text>
               </Pressable>
             </View>
 
-            <View style={{ borderBottomWidth: 1, borderColor: adminColors.line, padding: spacing.md, gap: spacing.sm }}>
+            <View
+              style={{
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#E4EBF3",
+                backgroundColor: "#FFFFFF",
+                padding: spacing.md,
+                gap: spacing.sm,
+                shadowColor: "#94A3B8",
+                shadowOffset: { width: 0, height: 5 },
+                shadowOpacity: 0.08,
+                shadowRadius: 10,
+                elevation: 2,
+              }}
+            >
               <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>Template</Text>
-              <View style={{ gap: 3 }}>
+              <View style={{ gap: 5 }}>
                 {sections.filter((item) => item.key !== "pageLabels").map((item) => (
                   <LayerRow key={item.key} item={item} />
                 ))}
@@ -3215,31 +4121,62 @@ const StoreEditorPanel = ({
               <Pressable
                 accessibilityRole="button"
                 onPress={addActiveSectionItem}
-                style={{ minHeight: 30, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: spacing.xl }}
+                style={{
+                  minHeight: 32,
+                  borderRadius: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                  paddingLeft: spacing.md,
+                  backgroundColor: "#F0F7FF",
+                }}
               >
                 <Ionicons name="add-circle-outline" size={15} color="#0B5ED7" />
                 <Text style={{ color: "#0B5ED7", fontSize: 12, fontWeight: "800" }}>Add section</Text>
               </Pressable>
             </View>
 
-            <View style={{ padding: spacing.md, gap: spacing.sm }}>
+            <View
+              style={{
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#E4EBF3",
+                backgroundColor: "#FFFFFF",
+                padding: spacing.md,
+                gap: spacing.sm,
+                shadowColor: "#94A3B8",
+                shadowOffset: { width: 0, height: 5 },
+                shadowOpacity: 0.08,
+                shadowRadius: 10,
+                elevation: 2,
+              }}
+            >
               <Text style={{ color: adminColors.ink, fontSize: 13, fontWeight: "900" }}>Footer</Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => onActiveSectionChange("sections")}
+                onPress={() => onActiveSectionChange("footer")}
                 style={{
-                  minHeight: 30,
-                  borderRadius: 8,
+                  minHeight: 36,
+                  borderRadius: 11,
                   paddingHorizontal: spacing.sm,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: spacing.sm,
-                  backgroundColor: activeSection === "sections" ? "#0B5ED7" : "#F3F4F6",
+                  backgroundColor: activeSection === "footer" ? "#FFFFFF" : "#F8FAFC",
+                  borderWidth: 1,
+                  borderColor: activeSection === "footer" ? "#C9DFFF" : "#EEF2F7",
+                  shadowColor: activeSection === "footer" ? "#0B5ED7" : "transparent",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: activeSection === "footer" ? 0.1 : 0,
+                  shadowRadius: 8,
+                  elevation: activeSection === "footer" ? 2 : 0,
                 }}
               >
-                <Ionicons name="chevron-forward" size={13} color={activeSection === "sections" ? colors.white : adminColors.softMuted} />
-                <Ionicons name="albums-outline" size={14} color={activeSection === "sections" ? colors.white : adminColors.muted} />
-                <Text style={{ color: activeSection === "sections" ? colors.white : adminColors.ink, fontSize: 12, fontWeight: "800" }}>
+                <Ionicons name="chevron-forward" size={13} color={activeSection === "footer" ? "#0B5ED7" : adminColors.softMuted} />
+                <View style={{ width: 24, height: 24, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F8FF" }}>
+                  <Ionicons name="albums-outline" size={14} color={activeSection === "footer" ? "#0B5ED7" : adminColors.muted} />
+                </View>
+                <Text style={{ color: adminColors.ink, fontSize: 12, fontWeight: "800" }}>
                   Footer
                 </Text>
               </Pressable>
@@ -3249,45 +4186,204 @@ const StoreEditorPanel = ({
 
         <Splitter side="left" />
 
-        <View style={{ flex: 1, backgroundColor: "#EFF3F7", minWidth: 0 }}>
+        <View
+          onLayout={(event) => setPreviewPaneWidth(event.nativeEvent.layout.width)}
+          style={{ flex: isDesktop ? 2.2 : 1, backgroundColor: "#EFF3F7", minWidth: 0, order: isDesktop ? 4 : 0 } as ViewStyle}
+        >
           <ScrollView contentContainerStyle={{ padding: isDesktop ? spacing.lg : spacing.md, alignItems: "center" }}>
-            <View
-              style={{
-                width: "100%",
-                maxWidth: canvasMaxWidth,
-                backgroundColor: livePreviewColors.background,
-                overflow: "hidden",
-                borderRadius: isPreviewDesktop ? 0 : 24,
-                borderWidth: 1,
-                borderColor: "#E5E9EF",
-              }}
-            >
+            <View style={{ width: previewCanvasWrapperWidth, alignItems: "flex-start" }}>
               <View
                 style={{
-                  minHeight: 58,
-                  paddingHorizontal: canvasPadding,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  borderBottomWidth: 1,
-                  borderBottomColor: livePreviewColors.border,
-                  backgroundColor: livePreviewColors.surface,
+                  width: isPreviewDesktop ? canvasMaxWidth : "100%",
+                  maxWidth: canvasMaxWidth,
+                  backgroundColor: livePreviewColors.background,
+                  overflow: "hidden",
+                  borderRadius: isPreviewDesktop ? 0 : 24,
+                  borderWidth: 1,
+                  borderColor: "#E5E9EF",
+                  transform: isPreviewDesktop ? [{ scale: previewScale }] : undefined,
+                  transformOrigin: "top left" as never,
                 }}
               >
-                <Text style={{ color: livePreviewColors.primary, fontSize: 18, fontWeight: "900" }}>
-                  SachinIndia
-                </Text>
-                {isPreviewDesktop ? (
-                  <View style={{ flexDirection: "row", gap: spacing.xl, alignItems: "center" }}>
-                    <Text style={{ color: livePreviewColors.text, fontSize: 13, fontWeight: "800" }}>Home</Text>
-                    <Text style={{ color: livePreviewColors.muted, fontSize: 13, fontWeight: "800" }}>Categories</Text>
-                    <Text style={{ color: livePreviewColors.muted, fontSize: 13, fontWeight: "800" }}>Deals</Text>
-                    <Ionicons name="cart-outline" size={18} color={livePreviewColors.text} />
+              <Pressable accessibilityRole="button" onPress={() => onActiveSectionChange("header")} style={selectFrame("header")}>
+                {draft.header.announcement ? (
+                  <View
+                    style={{
+                      minHeight: 30,
+                      paddingHorizontal: canvasPadding,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: draft.header.accentColor,
+                    }}
+                  >
+                    <Text style={{ color: colors.white, fontSize: 12, fontWeight: "900" }} numberOfLines={1}>
+                      {draft.header.announcement}
+                    </Text>
                   </View>
+                ) : null}
+
+                {isPreviewDesktop ? (
+                  <>
+                    <View
+                      style={{
+                        minHeight: 66,
+                        paddingHorizontal: canvasPadding,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: spacing.md,
+                        borderBottomWidth: 1,
+                        borderBottomColor: livePreviewColors.border,
+                        backgroundColor: draft.header.backgroundColor || livePreviewColors.surface,
+                      }}
+                    >
+                      <View
+                        style={{
+                          minHeight: 40,
+                          borderRadius: 12,
+                          paddingHorizontal: spacing.md,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: spacing.sm,
+                          backgroundColor: draft.header.accentColor || colors.accent,
+                        }}
+                      >
+                        <Ionicons name="bag-handle-outline" size={15} color={colors.white} />
+                        <Text style={{ color: colors.white, fontSize: 16, fontWeight: "900" }}>
+                          {draft.header.logoText}
+                        </Text>
+                        <Ionicons name="chevron-down" size={13} color={colors.white} />
+                      </View>
+
+                      <View
+                        style={{
+                          flex: 1,
+                          minHeight: 40,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: "#D9E2EF",
+                          backgroundColor: "#FFFFFF",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: spacing.md,
+                          gap: spacing.sm,
+                        }}
+                      >
+                        <Ionicons name="search-outline" size={18} color="#64748B" />
+                        <Text style={{ flex: 1, color: "#52627A", fontSize: 13 }} numberOfLines={1}>
+                          {draft.header.searchPlaceholder}
+                        </Text>
+                        <View style={{ borderRadius: 10, backgroundColor: "#EAF2FF", paddingHorizontal: spacing.md, paddingVertical: 7 }}>
+                          <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "900" }}>Search</Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.lg }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                          <Ionicons name="person-circle-outline" size={18} color={draft.header.textColor} />
+                          <Text style={{ color: draft.header.textColor, fontSize: 13, fontWeight: "900" }}>
+                            ShopApp
+                          </Text>
+                          <Ionicons name="chevron-down" size={12} color={draft.header.textColor} />
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                          <Text style={{ color: draft.header.textColor, fontSize: 13, fontWeight: "900" }}>More</Text>
+                          <Ionicons name="chevron-down" size={12} color={draft.header.textColor} />
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                          <Ionicons name="cart-outline" size={19} color={draft.header.textColor} />
+                          <Text style={{ color: draft.header.textColor, fontSize: 13, fontWeight: "900" }}>Cart</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View
+                      style={{
+                        minHeight: 72,
+                        paddingHorizontal: canvasPadding,
+                        borderBottomWidth: 1,
+                        borderBottomColor: livePreviewColors.border,
+                        backgroundColor: draft.header.backgroundColor || livePreviewColors.surface,
+                      }}
+                    >
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.lg, alignItems: "center" }}>
+                        {[defaultBuyerMainHomeCategoryPage, ...categoryPageItems].slice(0, 13).map((item) => {
+                          const active = item.id === selectedCategoryPage?.id;
+
+                          return (
+                          <View
+                            key={item.id}
+                            style={{
+                              width: 70,
+                              minHeight: 70,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderBottomWidth: active ? 3 : 0,
+                              borderBottomColor: colors.primary,
+                              backgroundColor: active ? "#EEF6FF" : "transparent",
+                            }}
+                          >
+                            <Ionicons name={item.icon as IconName} size={20} color={active ? item.accent : "#111827"} />
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color: active ? "#111827" : "#64748B",
+                                fontSize: 10,
+                                fontWeight: "900",
+                                marginTop: spacing.xs,
+                                textAlign: "center",
+                              }}
+                            >
+                              {item.id === "for-you" ? "For You" : item.label}
+                            </Text>
+                          </View>
+                        );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </>
                 ) : (
-                  <Ionicons name="menu-outline" size={22} color={livePreviewColors.text} />
+                  <LinearGradient
+                    colors={[colors.primary, colors.primaryDark]}
+                    style={{
+                      paddingHorizontal: spacing.md,
+                      paddingTop: spacing.lg,
+                      paddingBottom: spacing.lg,
+                      gap: spacing.md,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <View>
+                        <Text style={{ color: colors.white, fontSize: 22, fontWeight: "900" }}>{draft.header.logoText}</Text>
+                        <Text style={{ color: colors.white, marginTop: 4, fontSize: 12 }}>Good afternoon, ShopApp</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                        {(["notifications-outline", "cart-outline", "person-outline"] as IconName[]).map((icon) => (
+                          <View key={icon} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                            <Ionicons name={icon} size={17} color={colors.white} />
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    <View
+                      style={{
+                        minHeight: 50,
+                        borderRadius: 25,
+                        backgroundColor: colors.white,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: spacing.md,
+                        gap: spacing.sm,
+                      }}
+                    >
+                      <Ionicons name="search-outline" size={17} color="#64748B" />
+                      <Text style={{ flex: 1, color: "#64748B", fontSize: 12 }} numberOfLines={1}>
+                        {draft.header.searchPlaceholder.replace("Products, Brands and More", "products, brands, categories...")}
+                      </Text>
+                      <Ionicons name="options-outline" size={17} color={colors.primary} />
+                    </View>
+                  </LinearGradient>
                 )}
-              </View>
+              </Pressable>
 
               <View style={{ padding: canvasPadding }}>
                 {activeSection === "categoryPages" ? (
@@ -3301,15 +4397,15 @@ const StoreEditorPanel = ({
                       onPress={() => onActiveSectionChange("hero")}
                       style={{
                         height: isPreviewDesktop ? 400 : 340,
-                        borderRadius: isPreviewDesktop ? radius.xl : radius.lg,
+                        borderRadius: isPreviewDesktop ? homeDesign.cardRadius + 4 : homeDesign.cardRadius,
                         overflow: "hidden",
-                        backgroundColor: livePreviewColors.surface,
+                        backgroundColor: hero.bannerBackground || livePreviewColors.surface,
                         ...selectFrame("hero"),
                       }}
                     >
                       <Image source={{ uri: hero.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
                       <LinearGradient
-                        colors={[livePreviewColors.heroStart, livePreviewColors.heroEnd]}
+                        colors={[hero.overlayStart || livePreviewColors.heroStart, hero.overlayEnd || livePreviewColors.heroEnd]}
                         style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
                       />
                       <View
@@ -3338,7 +4434,7 @@ const StoreEditorPanel = ({
                           }}
                         >
                           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: hero.accent }} />
-                          <Text style={{ color: colors.white, fontSize: 12, fontWeight: "900" }}>
+                          <Text style={{ color: hero.eyebrowColor || colors.white, fontSize: 12, fontWeight: "900" }}>
                             {hero.eyebrow.toUpperCase()}
                           </Text>
                         </View>
@@ -3346,7 +4442,7 @@ const StoreEditorPanel = ({
                         <View style={{ maxWidth: isPreviewDesktop ? 680 : 320 }}>
                           <Text
                             style={{
-                              color: colors.white,
+                              color: hero.textColor || colors.white,
                               fontSize: isPreviewDesktop ? 54 : 34,
                               lineHeight: isPreviewDesktop ? 58 : 38,
                               fontWeight: "900",
@@ -3356,7 +4452,7 @@ const StoreEditorPanel = ({
                           </Text>
                           <Text
                             style={{
-                              color: "rgba(255,255,255,0.82)",
+                              color: hero.subtitleColor || "rgba(255,255,255,0.82)",
                               fontSize: isPreviewDesktop ? 18 : 15,
                               lineHeight: isPreviewDesktop ? 28 : 22,
                               marginTop: spacing.md,
@@ -3372,13 +4468,13 @@ const StoreEditorPanel = ({
                           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flexShrink: 1 }}>
                             <View
                               style={{
-                                backgroundColor: hero.accent,
+                                backgroundColor: hero.offerButtonColor || hero.accent,
                                 borderRadius: radius.md,
                                 paddingHorizontal: spacing.lg,
                                 paddingVertical: spacing.sm,
                               }}
                             >
-                              <Text style={{ color: "#111827", fontSize: 14, fontWeight: "900" }}>{hero.offer}</Text>
+                              <Text style={{ color: hero.offerTextColor || "#111827", fontSize: 14, fontWeight: "900" }}>{hero.offer}</Text>
                             </View>
                             {isPreviewDesktop ? (
                               <Text style={{ color: "rgba(255,255,255,0.72)", fontWeight: "700" }}>Tap to explore</Text>
@@ -3400,7 +4496,7 @@ const StoreEditorPanel = ({
                       </View>
                     </Pressable>
 
-                    <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
+                    <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: homeDesign.sectionSpacing, gap: spacing.sm }}>
                       {draft.home.heroes.map((item) => (
                         <View
                           key={item.id}
@@ -3417,10 +4513,10 @@ const StoreEditorPanel = ({
                 ) : null}
 
                 {promoItems.length > 0 && showPromoPreview ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => onActiveSectionChange("promo")}
-                  style={{ marginTop: spacing.xl, order: getHomeSectionOrder("promo"), ...selectFrame("promo") } as ViewStyle}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onActiveSectionChange("promo")}
+                  style={{ marginTop: homeDesign.sectionSpacing, order: getHomeSectionOrder("promo"), ...selectFrame("promo") } as ViewStyle}
                 >
                   <View style={{ flexDirection: isPreviewDesktop ? "row" : "column", gap: spacing.md }}>
                     {promoItems[0] ? (
@@ -3433,7 +4529,7 @@ const StoreEditorPanel = ({
                         style={{
                           flex: isPreviewDesktop ? 1.25 : undefined,
                           minHeight: isPreviewDesktop ? 336 : 240,
-                          borderRadius: radius.lg,
+                          borderRadius: homeDesign.cardRadius,
                           overflow: "hidden",
                           borderWidth: activeSection === "promo" && selectedPromoIndex === 0 ? 2 : 1,
                           borderColor: activeSection === "promo" && selectedPromoIndex === 0 ? "#1688F0" : livePreviewColors.border,
@@ -3466,7 +4562,7 @@ const StoreEditorPanel = ({
                             style={{
                               minHeight: isPreviewDesktop ? (index === 1 ? 160 : 160) : 180,
                               flex: isPreviewDesktop ? 1 : undefined,
-                              borderRadius: radius.lg,
+                              borderRadius: homeDesign.cardRadius,
                               overflow: "hidden",
                               borderWidth: activeSection === "promo" && selectedPromoIndex === index ? 2 : 1,
                               borderColor: activeSection === "promo" && selectedPromoIndex === index ? "#1688F0" : livePreviewColors.border,
@@ -3494,7 +4590,7 @@ const StoreEditorPanel = ({
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onActiveSectionChange("brandSpotlight")}
-                  style={{ marginTop: spacing.xl, order: getHomeSectionOrder("brandSpotlight"), ...selectFrame("brandSpotlight") } as ViewStyle}
+                  style={{ marginTop: homeDesign.sectionSpacing, order: getHomeSectionOrder("brandSpotlight"), ...selectFrame("brandSpotlight") } as ViewStyle}
                 >
                   <Text style={{ color: livePreviewColors.text, fontSize: 24, fontWeight: "900", marginBottom: spacing.md }}>
                     Brands in Spotlight
@@ -3515,13 +4611,13 @@ const StoreEditorPanel = ({
                           borderWidth: activeSection === "brandSpotlight" && selectedBrandIndex === index ? 2 : 0,
                           borderColor: "#1688F0",
                           overflow: "hidden",
-                          backgroundColor: livePreviewColors.surface,
+                          backgroundColor: item.cardBackground || livePreviewColors.surface,
                         }}
                       >
-                        <View style={{ height: isPreviewDesktop ? 255 : 205, borderRadius: 12, overflow: "hidden", backgroundColor: "#E8F0F6" }}>
+                        <View style={{ height: isPreviewDesktop ? item.cardHeight || 255 : Math.max(170, (item.cardHeight || 255) - 50), borderRadius: 12, overflow: "hidden", backgroundColor: "#E8F0F6" }}>
                           <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
                           <View style={{ position: "absolute", top: spacing.sm, left: spacing.sm }}>
-                            <Text style={{ color: colors.white, fontSize: 20, fontWeight: "900" }}>{item.brand}</Text>
+                            <Text style={{ color: item.brandColor || colors.white, fontSize: 20, fontWeight: "900" }}>{item.brand}</Text>
                           </View>
                           {item.badge ? (
                             <View
@@ -3530,12 +4626,12 @@ const StoreEditorPanel = ({
                                 top: spacing.sm,
                                 right: spacing.sm,
                                 borderRadius: 5,
-                                backgroundColor: "rgba(255,255,255,0.58)",
+                                backgroundColor: item.badgeBackground || "rgba(255,255,255,0.58)",
                                 paddingHorizontal: spacing.xs,
                                 paddingVertical: 3,
                               }}
                             >
-                              <Text style={{ color: colors.white, fontSize: 11, fontWeight: "900" }}>{item.badge}</Text>
+                              <Text style={{ color: item.badgeTextColor || colors.white, fontSize: 11, fontWeight: "900" }}>{item.badge}</Text>
                             </View>
                           ) : null}
                           <View
@@ -3547,16 +4643,16 @@ const StoreEditorPanel = ({
                               minHeight: 40,
                               alignItems: "center",
                               justifyContent: "center",
-                              backgroundColor: "#F4FF00",
+                              backgroundColor: item.titleBarColor || "#F4FF00",
                             }}
                           >
-                            <Text style={{ color: "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
+                            <Text style={{ color: item.titleColor || "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
                               {item.title}
                             </Text>
                           </View>
                         </View>
                         <Text
-                          style={{ color: livePreviewColors.text, fontSize: 20, textAlign: "center", marginTop: spacing.xs, fontWeight: "500" }}
+                          style={{ color: item.subtitleColor || livePreviewColors.text, fontSize: 20, textAlign: "center", marginTop: spacing.xs, fontWeight: "500" }}
                           numberOfLines={1}
                         >
                           {item.subtitle}
@@ -3571,7 +4667,7 @@ const StoreEditorPanel = ({
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onActiveSectionChange("mediaShowcase")}
-                  style={{ marginTop: spacing.xl, order: getHomeSectionOrder("mediaShowcase"), ...selectFrame("mediaShowcase") } as ViewStyle}
+                  style={{ marginTop: homeDesign.sectionSpacing, order: getHomeSectionOrder("mediaShowcase"), ...selectFrame("mediaShowcase") } as ViewStyle}
                 >
                   <Text
                     style={{
@@ -3653,7 +4749,7 @@ const StoreEditorPanel = ({
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onActiveSectionChange("category")}
-                  style={{ marginTop: spacing.xl, order: getHomeSectionOrder("category"), ...selectFrame("category") } as ViewStyle}
+                  style={{ marginTop: homeDesign.sectionSpacing, order: getHomeSectionOrder("category"), ...selectFrame("category") } as ViewStyle}
                 >
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View>
@@ -3721,7 +4817,7 @@ const StoreEditorPanel = ({
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => onActiveSectionChange("lovedOnes")}
-                  style={{ marginTop: spacing.lg, order: getHomeSectionOrder("lovedOnes"), ...selectFrame("lovedOnes") } as ViewStyle}
+                  style={{ marginTop: homeDesign.sectionSpacing, order: getHomeSectionOrder("lovedOnes"), ...selectFrame("lovedOnes") } as ViewStyle}
                 >
                   <Text style={{ marginBottom: spacing.md, color: livePreviewColors.text, fontSize: 24, fontWeight: "900" }}>
                     {draft.home.lovedOnesTitle}
@@ -3737,10 +4833,10 @@ const StoreEditorPanel = ({
                         }}
                         style={{
                           width: isPreviewDesktop ? 300 : 320,
-                          height: 170,
+                          height: item.cardHeight || 170,
                           borderRadius: radius.md,
                           overflow: "hidden",
-                          backgroundColor: livePreviewColors.primary,
+                          backgroundColor: item.cardBackground || livePreviewColors.primary,
                           marginRight: spacing.xl,
                           borderWidth: activeSection === "lovedOnes" && selectedLovedIndex === index ? 2 : 0,
                           borderColor: "#1688F0",
@@ -3748,11 +4844,11 @@ const StoreEditorPanel = ({
                       >
                         <Image source={{ uri: item.image }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
                         <LinearGradient
-                          colors={["rgba(0,30,80,0.08)", "rgba(0,34,90,0.82)"]}
+                          colors={[item.overlayStart || "rgba(0,30,80,0.08)", item.overlayEnd || "rgba(0,34,90,0.82)"]}
                           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, justifyContent: "flex-end", padding: spacing.lg }}
                         >
-                          <Text style={{ color: colors.white, fontSize: 21, fontWeight: "900" }}>{item.title}</Text>
-                          <Text style={{ color: "rgba(255,255,255,0.84)", marginTop: 4, fontWeight: "700" }}>{item.subtitle}</Text>
+                          <Text style={{ color: item.titleColor || colors.white, fontSize: 21, fontWeight: "900" }}>{item.title}</Text>
+                          <Text style={{ color: item.subtitleColor || "rgba(255,255,255,0.84)", marginTop: 4, fontWeight: "700" }}>{item.subtitle}</Text>
                         </LinearGradient>
                       </Pressable>
                     ))}
@@ -3764,7 +4860,7 @@ const StoreEditorPanel = ({
                   { title: draft.home.dealsTitle, action: draft.home.dealsActionLabel, icon: "flash" as IconName, color: colors.accent },
                   { title: draft.home.featuredTitle, action: draft.home.featuredActionLabel, icon: "star" as IconName, color: colors.star },
                 ].map((section) => (
-                  <View key={section.title} style={{ marginTop: spacing.xl, order: 20 } as ViewStyle}>
+                  <View key={section.title} style={{ marginTop: homeDesign.sectionSpacing, order: 20 } as ViewStyle}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                         <Ionicons name={section.icon} size={20} color={section.color} />
@@ -3778,7 +4874,7 @@ const StoreEditorPanel = ({
                           key={`${section.title}-${item.title}`}
                           style={{
                             width: isPreviewDesktop ? 220 : 160,
-                            borderRadius: radius.lg,
+                            borderRadius: homeDesign.cardRadius,
                             borderWidth: 1,
                             borderColor: livePreviewColors.border,
                             backgroundColor: livePreviewColors.surface,
@@ -3800,6 +4896,97 @@ const StoreEditorPanel = ({
                 </>
                 )}
               </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onActiveSectionChange("footer")}
+                style={{
+                  paddingHorizontal: canvasPadding,
+                  paddingTop: spacing.xxl,
+                  paddingBottom: spacing.lg,
+                  backgroundColor: draft.footer.backgroundColor,
+                  ...selectFrame("footer"),
+                }}
+              >
+                {isPreviewDesktop ? (
+                  <View style={{ gap: spacing.lg }}>
+                    <View style={{ flexDirection: "row", gap: spacing.xl }}>
+                      {[
+                        { title: "ABOUT", links: ["Contact Us", "About Us", "Careers", "Stories", "Press", "Corporate Information"] },
+                        { title: "GROUP COMPANIES", links: ["Myntra", "Cleartrip", "Shopsy"] },
+                        { title: "HELP", links: ["Payments", "Shipping", "Cancellation & Returns", "FAQ"] },
+                        { title: "CONSUMER POLICY", links: ["Cancellation & Returns", "Terms Of Use", "Security", "Privacy", "Sitemap", "Grievance Redressal", "ERP Compliance"] },
+                      ].map((column) => (
+                        <View key={column.title} style={{ flex: 1 }}>
+                          <Text style={{ color: draft.footer.mutedColor, fontSize: 10, marginBottom: spacing.md }}>
+                            {column.title}
+                          </Text>
+                          {column.links.map((link) => (
+                            <Text key={link} style={{ color: draft.footer.textColor, fontSize: 12, fontWeight: "900", marginBottom: 7 }}>
+                              {link}
+                            </Text>
+                          ))}
+                        </View>
+                      ))}
+                      <View style={{ width: 1, backgroundColor: "rgba(255,255,255,0.16)" }} />
+                      <View style={{ width: 210 }}>
+                        <Text style={{ color: draft.footer.mutedColor, fontSize: 10, marginBottom: spacing.md }}>
+                          Mail Us:
+                        </Text>
+                        <Text style={{ color: draft.footer.textColor, fontSize: 12, lineHeight: 22, fontWeight: "900" }}>
+                          {draft.footer.mailAddress}
+                        </Text>
+                        <Text style={{ color: draft.footer.mutedColor, fontSize: 10, marginTop: spacing.md, marginBottom: spacing.sm }}>
+                          Social:
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                          {(["logo-facebook", "logo-x", "logo-youtube", "logo-instagram"] as IconName[]).map((icon) => (
+                            <View key={icon} style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)", alignItems: "center", justifyContent: "center" }}>
+                              <Ionicons name={icon} size={13} color={draft.footer.textColor} />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      <View style={{ width: 240 }}>
+                        <Text style={{ color: draft.footer.mutedColor, fontSize: 10, marginBottom: spacing.md }}>
+                          Registered Office Address:
+                        </Text>
+                        <Text style={{ color: draft.footer.textColor, fontSize: 12, lineHeight: 22, fontWeight: "900" }}>
+                          {draft.footer.officeAddress}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.16)" }} />
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md, flex: 1 }}>
+                        {draft.footer.quickLinks.map((link, index) => (
+                          <View key={`${link}-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                            <Ionicons name={(["storefront-outline", "megaphone-outline", "gift-outline", "help-circle-outline"] as IconName[])[index] || "help-circle-outline"} size={13} color="#FACC15" />
+                            <Text style={{ color: draft.footer.textColor, fontSize: 12 }}>{link}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <Text style={{ color: draft.footer.textColor, fontSize: 12 }}>{draft.footer.copyright}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ gap: spacing.md }}>
+                    <Text style={{ color: draft.footer.mutedColor, fontSize: 11, fontWeight: "900" }}>Mail Us:</Text>
+                    <Text style={{ color: draft.footer.textColor, fontSize: 12, lineHeight: 20, fontWeight: "800" }}>
+                      {draft.footer.mailAddress}
+                    </Text>
+                    <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.16)" }} />
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
+                      {draft.footer.quickLinks.map((link, index) => (
+                        <Text key={`${link}-${index}`} style={{ color: draft.footer.textColor, fontSize: 12, fontWeight: "800" }}>
+                          {link}
+                        </Text>
+                      ))}
+                    </View>
+                    <Text style={{ color: draft.footer.textColor, fontSize: 12 }}>{draft.footer.copyright}</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
             </View>
           </ScrollView>
 
@@ -3876,12 +5063,18 @@ const StoreEditorPanel = ({
         <ScrollView
           style={{
             width: isDesktop ? inspectorWidth : "100%",
+            minWidth: isDesktop ? inspectorWidth : undefined,
+            maxWidth: isDesktop ? inspectorWidth : undefined,
+            flexBasis: isDesktop ? inspectorWidth : undefined,
+            flexGrow: 0,
+            flexShrink: 0,
+            order: isDesktop ? 2 : 0,
             borderLeftWidth: isDesktop ? 1 : 0,
             borderTopWidth: isDesktop ? 0 : 1,
             borderColor: adminColors.line,
-            backgroundColor: colors.white,
-          }}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+            backgroundColor: "#F6F8FB",
+          } as ViewStyle}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 }}>
@@ -4158,7 +5351,16 @@ const StoreEditorPanel = ({
           ) : null}
 
           <InspectorGroup title="Content">
-            <View style={{ borderLeftWidth: 3, borderLeftColor: selectedAccent, paddingLeft: spacing.md, gap: spacing.md }}>
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: `${selectedAccent}33`,
+                backgroundColor: `${selectedAccent}0D`,
+                padding: spacing.md,
+                gap: spacing.md,
+              }}
+            >
               {renderActiveFields()}
             </View>
           </InspectorGroup>
@@ -4689,7 +5891,7 @@ const TopBar = ({
         flex: compact ? 0 : 1,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: compact ? 42 : 0 }}>
         {compact ? (
           <Image
             source={startupLogo}
@@ -4697,7 +5899,7 @@ const TopBar = ({
             style={{ width: 28, height: 28, borderRadius: 6 }}
           />
         ) : null}
-        <Text style={{ color: adminColors.ink, fontSize: 22, fontWeight: "900" }} numberOfLines={1}>
+        <Text style={{ color: adminColors.ink, fontSize: 22, fontWeight: "900", flexShrink: 1 }} numberOfLines={1}>
           {title}
         </Text>
       </View>
@@ -6084,6 +7286,7 @@ export default function AdminDashboardScreen() {
 
   const childrenByView = {
     editor: [
+      { label: "Header", active: activeEditorSection === "header", color: colors.primary, onPress: () => setActiveEditorSection("header") },
       ...editorSectionOrder.map((section, index) => {
         const meta = editorSectionNavMeta[section];
 
@@ -6104,6 +7307,7 @@ export default function AdminDashboardScreen() {
       { label: "All Pages", active: activeEditorSection === "sitePages", color: colors.primary, onPress: () => setActiveEditorSection("sitePages") },
       { label: "Category Pages", active: activeEditorSection === "categoryPages", color: colors.teal, onPress: () => setActiveEditorSection("categoryPages") },
       { label: "Pages", active: activeEditorSection === "pageLabels", color: colors.purple, onPress: () => setActiveEditorSection("pageLabels") },
+      { label: "Footer", active: activeEditorSection === "footer", color: colors.accent, onPress: () => setActiveEditorSection("footer") },
     ],
     orders: [
       { label: "All", active: orderStatusFilter === "all", color: colors.primary, onPress: () => setOrderStatusFilter("all") },
@@ -6229,7 +7433,7 @@ export default function AdminDashboardScreen() {
               onPress={() => setSidebarVisible((value) => !value)}
               style={{
                 position: "absolute",
-                left: sidebarVisible ? 224 : 10,
+                left: sidebarVisible ? 16 : 10,
                 top: 18,
                 zIndex: 80,
                 width: 32,

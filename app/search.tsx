@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, SafeAreaView, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import CategoryChip from "../components/CategoryChip";
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
+import ResponsiveGrid from "../components/ResponsiveGrid";
+import { APP_MAX_WIDTH, DESKTOP_BREAKPOINT } from "../constants/layout";
 import { categoryList } from "../constants/mockData";
 import { colors, radius, spacing } from "../constants/theme";
 import { useAuth } from "../hooks/useAuth";
@@ -17,11 +19,16 @@ import { Product } from "../types";
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string; category?: string }>();
+  const { width } = useWindowDimensions();
   const { user } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState(params.q || "");
   const [category, setCategory] = useState(params.category || "All");
+  const isDesktopWeb = Platform.OS === "web" && width >= DESKTOP_BREAKPOINT;
+  const searchCategoryItems = categoryList.filter((item) =>
+    ["All", "Electronics", "Fashion", "Home", "Sports", "Books", "Beauty", "Toys", "Food", "Automotive"].includes(item.name)
+  );
 
   useEffect(() => {
     const unsubscribe = subscribeToActiveProducts(setProducts);
@@ -43,7 +50,8 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View style={{ width: "100%", maxWidth: APP_MAX_WIDTH, alignSelf: "center", padding: spacing.lg }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
           <Pressable
             onPress={() => router.back()}
@@ -79,12 +87,9 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.sm }}>
-          {categoryList
-            .filter((item) =>
-              ["All", "Electronics", "Fashion", "Home", "Sports", "Books", "Beauty", "Toys", "Food", "Automotive"].includes(item.name)
-            )
-            .map((item) => (
+        {isDesktopWeb ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.sm }}>
+            {searchCategoryItems.map((item) => (
               <CategoryChip
                 key={item.id}
                 icon={item.icon as keyof typeof Ionicons.glyphMap}
@@ -94,7 +99,21 @@ export default function SearchScreen() {
                 onPress={() => setCategory(item.name)}
               />
             ))}
-        </ScrollView>
+          </ScrollView>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.sm }}>
+            {searchCategoryItems.map((item) => (
+              <CategoryChip
+                key={item.id}
+                icon={item.icon as keyof typeof Ionicons.glyphMap}
+                label={item.name}
+                color={item.color}
+                active={category === item.name}
+                onPress={() => setCategory(item.name)}
+              />
+            ))}
+          </ScrollView>
+        )}
 
         <Text style={{ marginTop: spacing.lg, marginBottom: spacing.md, color: colors.muted, fontWeight: "700" }}>
           {results.length} result{results.length === 1 ? "" : "s"} found
@@ -109,11 +128,16 @@ export default function SearchScreen() {
             onPress={() => router.push("/")}
           />
         ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-            {results.map((product) => (
+          <ResponsiveGrid
+            items={results}
+            minItemWidth={156}
+            maxItemWidth={230}
+            horizontalPadding={spacing.lg}
+            renderItem={(product, cardWidth) => (
               <ProductCard
                 key={product.id}
                 product={product}
+                cardWidth={cardWidth}
                 onPress={() => router.push(`/product/${product.id}`)}
                 onAddToCart={() => {
                   if (!user) {
@@ -132,9 +156,10 @@ export default function SearchScreen() {
                   showToast("success", "Added to cart", product.name);
                 }}
               />
-            ))}
-          </View>
+            )}
+          />
         )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

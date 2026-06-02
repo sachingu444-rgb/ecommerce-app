@@ -6,8 +6,10 @@ import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import { categoryList } from "../../constants/mockData";
 import DesktopSiteFooter from "../../components/DesktopSiteFooter";
+import ResponsiveGrid from "../../components/ResponsiveGrid";
 import SmartImage from "../../components/SmartImage";
 import { defaultBuyerEditablePages, defaultBuyerPageContent } from "../../constants/buyerPageContent";
+import { APP_MAX_WIDTH } from "../../constants/layout";
 import { colors, radius, spacing } from "../../constants/theme";
 import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../lib/firebaseApi";
 import { BuyerPageContent, Product } from "../../types";
@@ -39,7 +41,8 @@ export default function CategoriesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View style={{ width: "100%", maxWidth: APP_MAX_WIDTH, alignSelf: "center", padding: spacing.lg }}>
         <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>
           {page.title}
         </Text>
@@ -60,8 +63,12 @@ export default function CategoriesScreen() {
           </LinearGradient>
         </View>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-          {categories.map((category) => (
+        <ResponsiveGrid
+          items={categories}
+          minItemWidth={180}
+          maxItemWidth={260}
+          horizontalPadding={spacing.lg}
+          renderItem={(category, cardWidth) => (
             <Pressable
               key={category.id}
               onPress={() =>
@@ -71,11 +78,11 @@ export default function CategoriesScreen() {
                 })
               }
               style={{
-                width: "48%",
+                width: cardWidth,
                 backgroundColor: `${category.color}16`,
                 borderRadius: radius.lg,
                 padding: spacing.lg,
-                marginBottom: spacing.md,
+                minHeight: 150,
               }}
             >
               <View
@@ -101,10 +108,11 @@ export default function CategoriesScreen() {
                 {category.count} products
               </Text>
             </Pressable>
-          ))}
-        </View>
+          )}
+        />
 
         <DesktopSiteFooter />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

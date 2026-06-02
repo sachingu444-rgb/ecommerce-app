@@ -1,7 +1,10 @@
 import {
   BuyerCategoryPage,
   BuyerEditablePage,
+  BuyerFooterContent,
+  BuyerHeaderContent,
   BuyerHomeContent,
+  BuyerHomeDesign,
   BuyerHomeSectionKey,
   BuyerPageContent,
   BuyerPageLabels,
@@ -16,6 +19,43 @@ export const defaultBuyerHomeSectionOrder: BuyerHomeSectionKey[] = [
   "lovedOnes",
 ];
 
+export const defaultBuyerHomeDesign: BuyerHomeDesign = {
+  backgroundColor: "#F6F8FB",
+  surfaceColor: "#FFFFFF",
+  textColor: "#111827",
+  mutedColor: "#64748B",
+  borderColor: "#E5E7EB",
+  primaryColor: "#0B887B",
+  heroOverlayStart: "rgba(3,7,18,0.15)",
+  heroOverlayEnd: "rgba(3,7,18,0.82)",
+  sectionSpacing: 24,
+  pagePadding: 24,
+  cardRadius: 16,
+};
+
+export const defaultBuyerHeaderContent: BuyerHeaderContent = {
+  announcement: "",
+  logoText: "SachinIndia",
+  searchPlaceholder: "Search for Products, Brands and More",
+  backgroundColor: "#FFFFFF",
+  textColor: "#111827",
+  accentColor: "#FF9900",
+  navLinks: ["Home", "Categories", "Deals"],
+};
+
+export const defaultBuyerFooterContent: BuyerFooterContent = {
+  heading: "ShopApp Internet Private Limited",
+  mailAddress:
+    "ShopApp Internet Private Limited,\nBuildings Alyssa, Begonia &\nClover Embassy Tech Village,\nOuter Ring Road, Bengaluru,\nKarnataka, India",
+  officeAddress:
+    "ShopApp Internet Private Limited,\nBuildings Alyssa, Begonia &\nClover Embassy Tech Village,\nOuter Ring Road, Bengaluru,\nKarnataka, India\nCIN: U51109KA2012PTC066107\nTelephone: 044-45614700",
+  copyright: "(c) 2007-2026 ShopApp.com",
+  backgroundColor: "#17212B",
+  textColor: "#FFFFFF",
+  mutedColor: "#8FA2B7",
+  quickLinks: ["Become a Seller", "Advertise", "Gift Cards", "Help Center"],
+};
+
 const defaultHomeContent: BuyerHomeContent = {
   heroes: [
     {
@@ -28,6 +68,13 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "Fashion",
       accent: "#FBBF24",
       durationHours: 24,
+      heroHeight: 400,
+      bannerBackground: "#FFFFFF",
+      textColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.82)",
+      eyebrowColor: "#FFFFFF",
+      offerButtonColor: "#FBBF24",
+      offerTextColor: "#111827",
     },
     {
       id: "premium-tech",
@@ -39,6 +86,13 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "Electronics",
       accent: "#38BDF8",
       durationHours: 48,
+      heroHeight: 400,
+      bannerBackground: "#FFFFFF",
+      textColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.82)",
+      eyebrowColor: "#FFFFFF",
+      offerButtonColor: "#38BDF8",
+      offerTextColor: "#111827",
     },
     {
       id: "premium-home",
@@ -50,6 +104,13 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "Home",
       accent: "#34D399",
       durationHours: 72,
+      heroHeight: 400,
+      bannerBackground: "#FFFFFF",
+      textColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.82)",
+      eyebrowColor: "#FFFFFF",
+      offerButtonColor: "#34D399",
+      offerTextColor: "#111827",
     },
   ],
   promoGrid: [
@@ -155,6 +216,7 @@ const defaultHomeContent: BuyerHomeContent = {
       category: "Fashion",
     },
   ],
+  design: defaultBuyerHomeDesign,
   sectionOrder: defaultBuyerHomeSectionOrder,
   lovedOnes: [
     {
@@ -163,6 +225,9 @@ const defaultHomeContent: BuyerHomeContent = {
       subtitle: "Smart casual styles",
       image: "https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=600",
       category: "Fashion",
+      titleColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.84)",
+      cardBackground: "#0B887B",
     },
     {
       id: "loved-women",
@@ -170,6 +235,9 @@ const defaultHomeContent: BuyerHomeContent = {
       subtitle: "Fresh fashion picks",
       image: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600",
       category: "Fashion",
+      titleColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.84)",
+      cardBackground: "#0B887B",
     },
     {
       id: "loved-couple",
@@ -177,6 +245,9 @@ const defaultHomeContent: BuyerHomeContent = {
       subtitle: "Daily deal combos",
       image: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600",
       category: "All",
+      titleColor: "#FFFFFF",
+      subtitleColor: "rgba(255,255,255,0.84)",
+      cardBackground: "#0B887B",
     },
   ],
   brandSpotlight: [
@@ -188,6 +259,12 @@ const defaultHomeContent: BuyerHomeContent = {
       image: "https://images.unsplash.com/photo-1578319439584-104c94d37305?w=700",
       category: "Electronics",
       badge: "AD",
+      brandColor: "#FFFFFF",
+      titleBarColor: "#F4FF00",
+      titleColor: "#050505",
+      subtitleColor: "#111827",
+      badgeBackground: "rgba(255,255,255,0.58)",
+      badgeTextColor: "#FFFFFF",
     },
     {
       id: "brand-mivi-soundbar",
@@ -197,6 +274,12 @@ const defaultHomeContent: BuyerHomeContent = {
       image: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=700",
       category: "Electronics",
       badge: "AD",
+      brandColor: "#FFFFFF",
+      titleBarColor: "#F4FF00",
+      titleColor: "#050505",
+      subtitleColor: "#111827",
+      badgeBackground: "rgba(255,255,255,0.58)",
+      badgeTextColor: "#FFFFFF",
     },
     {
       id: "brand-mivi-earbuds",
@@ -206,6 +289,12 @@ const defaultHomeContent: BuyerHomeContent = {
       image: "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=700",
       category: "Electronics",
       badge: "AD",
+      brandColor: "#FFFFFF",
+      titleBarColor: "#F4FF00",
+      titleColor: "#050505",
+      subtitleColor: "#111827",
+      badgeBackground: "rgba(255,255,255,0.58)",
+      badgeTextColor: "#FFFFFF",
     },
   ],
   mediaShowcase: {
@@ -269,14 +358,14 @@ const defaultPageLabels: BuyerPageLabels = {
 export const defaultBuyerCategoryPages: BuyerCategoryPage[] = [
   {
     id: "for-you",
-    label: "For You",
+    label: "Home",
     category: "All",
-    title: "For You",
+    title: "Home",
     subtitle: "Fresh picks, deals, and featured products from every category.",
     heroImage: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1400",
-    badge: "Personal picks",
+    badge: "Home picks",
     accent: "#0066CC",
-    icon: "bag-handle-outline",
+    icon: "home-outline",
     featuredTitle: "Recommended for you",
     dealTitle: "Live deals",
     emptyTitle: "New products coming soon",
@@ -522,28 +611,69 @@ const buildDefaultCategoryTiles = (page: BuyerCategoryPage) =>
     linkCategory: page.category,
   }));
 
-const withCategoryPageDefaults = (page: BuyerCategoryPage): BuyerCategoryPage => ({
-  ...page,
-  banners: page.banners?.length ? page.banners : buildDefaultCategoryBanners(page),
-  tiles: page.tiles?.length ? page.tiles : buildDefaultCategoryTiles(page),
-  highlightTitle: page.highlightTitle || `${page.label}, still looking for these?`,
-  highlightBackground: page.highlightBackground || "#F2FF00",
-  productCardCta: page.productCardCta || "View Store",
-  productCount: page.productCount || 8,
-  columns: page.columns || 4,
-  mobileColumns: page.mobileColumns || 2,
-  horizontalGap: page.horizontalGap || 8,
-  verticalGap: page.verticalGap || 24,
-  sectionWidth: page.sectionWidth || "page",
-  alignment: page.alignment || "left",
-  paddingTop: page.paddingTop ?? 24,
-  paddingBottom: page.paddingBottom ?? 48,
-  tileSize: page.tileSize || 106,
-  bannerHeight: page.bannerHeight || 247,
-  carouselOnMobile: page.carouselOnMobile ?? true,
-  colorScheme: page.colorScheme || "Scheme 1",
-  typographyPreset: page.typographyPreset || "Heading 6",
-});
+const normalizeHomeCategoryPage = (page: BuyerCategoryPage): BuyerCategoryPage => {
+  if (page.id !== "for-you") {
+    return page;
+  }
+
+  const legacyHighlight = !page.highlightTitle || page.highlightTitle === "For You, still looking for these?";
+  const legacyTileLabel = (label: string) => label === "For You" ? "Home" : label;
+
+  return {
+    ...page,
+    label: !page.label || page.label === "For You" ? "Home" : page.label,
+    title: !page.title || page.title === "For You" ? "Home" : page.title,
+    badge: !page.badge || page.badge === "Personal picks" ? "Home picks" : page.badge,
+    icon: !page.icon || page.icon === "bag-handle-outline" ? "home-outline" : page.icon,
+    highlightTitle: legacyHighlight ? "Home, still looking for these?" : page.highlightTitle,
+    banners: page.banners?.map((banner) => ({
+      ...banner,
+      title: banner.title === "For You" ? "Home" : banner.title,
+      subtitle: banner.subtitle === "Personal picks" ? "Home picks" : banner.subtitle,
+    })),
+    tiles: page.tiles?.map((tile) => ({
+      ...tile,
+      label: legacyTileLabel(tile.label),
+    })),
+  };
+};
+
+const withCategoryPageDefaults = (page: BuyerCategoryPage): BuyerCategoryPage => {
+  const normalizedPage = normalizeHomeCategoryPage(page);
+
+  return {
+    ...normalizedPage,
+    banners: normalizedPage.banners?.length ? normalizedPage.banners : buildDefaultCategoryBanners(normalizedPage),
+    tiles: normalizedPage.tiles?.length ? normalizedPage.tiles : buildDefaultCategoryTiles(normalizedPage),
+    highlightTitle: normalizedPage.highlightTitle || `${normalizedPage.label}, still looking for these?`,
+    highlightBackground: normalizedPage.highlightBackground || "#F2FF00",
+    productCardCta: normalizedPage.productCardCta || "View Store",
+    productCount: normalizedPage.productCount || 8,
+    columns: normalizedPage.columns || 4,
+    mobileColumns: normalizedPage.mobileColumns || 2,
+    horizontalGap: normalizedPage.horizontalGap || 8,
+    verticalGap: normalizedPage.verticalGap || 24,
+    sectionWidth: normalizedPage.sectionWidth || "page",
+    alignment: normalizedPage.alignment || "left",
+    paddingTop: normalizedPage.paddingTop ?? 24,
+    paddingBottom: normalizedPage.paddingBottom ?? 48,
+    tileSize: normalizedPage.tileSize || 106,
+    bannerHeight: normalizedPage.bannerHeight || 247,
+    carouselOnMobile: normalizedPage.carouselOnMobile ?? true,
+    colorScheme: normalizedPage.colorScheme || "Scheme 1",
+    typographyPreset: normalizedPage.typographyPreset || "Heading 6",
+  };
+};
+
+export const mainHomeCategoryPageId = "for-you";
+
+export const defaultBuyerMainHomeCategoryPage = withCategoryPageDefaults(
+  defaultBuyerCategoryPages[0]
+);
+
+export const defaultBuyerEditableCategoryPages = defaultBuyerCategoryPages
+  .filter((page) => page.id !== mainHomeCategoryPageId)
+  .map(withCategoryPageDefaults);
 
 export const defaultBuyerEditablePages: BuyerEditablePage[] = [
   {
@@ -667,8 +797,10 @@ export const defaultBuyerEditablePages: BuyerEditablePage[] = [
 
 export const defaultBuyerPageContent: BuyerPageContent = {
   home: defaultHomeContent,
+  header: defaultBuyerHeaderContent,
+  footer: defaultBuyerFooterContent,
   pages: defaultPageLabels,
-  categoryPages: defaultBuyerCategoryPages.map(withCategoryPageDefaults),
+  categoryPages: defaultBuyerEditableCategoryPages,
   editablePages: defaultBuyerEditablePages,
 };
 
@@ -683,7 +815,7 @@ const normalizeBuyerCategoryPages = (value?: unknown): BuyerCategoryPage[] => {
       .map((page) => [page.id as string, page])
   );
 
-  return defaultBuyerCategoryPages.map((fallback) =>
+  return defaultBuyerEditableCategoryPages.map((fallback) =>
     withCategoryPageDefaults({
       ...fallback,
       ...(savedById.get(fallback.id) || {}),
@@ -749,10 +881,30 @@ export const normalizeBuyerPageContent = (
         0
       ),
     },
+    design: {
+      ...defaultBuyerHomeDesign,
+      ...(value?.home?.design || {}),
+    },
     hiddenSections: Array.isArray(value?.home?.hiddenSections)
       ? value.home.hiddenSections
       : defaultBuyerPageContent.home.hiddenSections || [],
     sectionOrder: normalizeBuyerHomeSectionOrder(value?.home?.sectionOrder),
+  },
+  header: {
+    ...defaultBuyerHeaderContent,
+    ...(value?.header || {}),
+    navLinks:
+      Array.isArray(value?.header?.navLinks) && value.header.navLinks.length > 0
+        ? value.header.navLinks
+        : defaultBuyerHeaderContent.navLinks,
+  },
+  footer: {
+    ...defaultBuyerFooterContent,
+    ...(value?.footer || {}),
+    quickLinks:
+      Array.isArray(value?.footer?.quickLinks) && value.footer.quickLinks.length > 0
+        ? value.footer.quickLinks
+        : defaultBuyerFooterContent.quickLinks,
   },
   pages: {
     ...defaultBuyerPageContent.pages,

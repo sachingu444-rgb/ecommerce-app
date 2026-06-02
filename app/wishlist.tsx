@@ -6,6 +6,8 @@ import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import EmptyState from "../components/EmptyState";
 import ProductCard from "../components/ProductCard";
+import ResponsiveGrid from "../components/ResponsiveGrid";
+import { APP_MAX_WIDTH } from "../constants/layout";
 import { colors, spacing } from "../constants/theme";
 import { useRequireAuth } from "../hooks/useRequireAuth";
 import { fetchWishlistProducts, toggleWishlist } from "../lib/firebaseApi";
@@ -52,7 +54,8 @@ export default function WishlistScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View style={{ width: "100%", maxWidth: APP_MAX_WIDTH, alignSelf: "center", padding: spacing.lg }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
           <Pressable
             onPress={() => router.back()}
@@ -82,11 +85,16 @@ export default function WishlistScreen() {
             onPress={() => router.push("/")}
           />
         ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-            {products.map((product) => (
+          <ResponsiveGrid
+            items={products}
+            minItemWidth={156}
+            maxItemWidth={230}
+            horizontalPadding={spacing.lg}
+            renderItem={(product, cardWidth) => (
               <ProductCard
                 key={product.id}
                 product={product}
+                cardWidth={cardWidth}
                 inWishlist
                 onToggleWishlist={async () => {
                   await toggleWishlist(user.uid, product.id, true);
@@ -107,9 +115,10 @@ export default function WishlistScreen() {
                   showToast("success", "Added to cart", product.name);
                 }}
               />
-            ))}
-          </View>
+            )}
+          />
         )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

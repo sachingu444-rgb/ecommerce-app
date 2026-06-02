@@ -1,0 +1,3 @@
+export const APP_MAX_WIDTH = 1280;
+export const DESKTOP_BREAKPOINT = 1080;
+export const CATEGORY_BANNER_ASPECT_RATIO = 115 / 56;

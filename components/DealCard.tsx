@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { DimensionValue, Pressable, Text, View } from "react-native";
 
 import { colors, radius, shadows, spacing } from "../constants/theme";
 import { formatCurrency } from "../lib/utils";
@@ -8,6 +8,8 @@ import SmartImage from "./SmartImage";
 interface DealCardProps {
   product: Product;
   onPress?: () => void;
+  width?: DimensionValue;
+  marginRight?: number;
   palette?: {
     card: string;
     text: string;
@@ -18,7 +20,7 @@ interface DealCardProps {
   };
 }
 
-const DealCard = ({ product, onPress, palette }: DealCardProps) => {
+const DealCard = ({ product, onPress, width = 150, marginRight = spacing.md, palette }: DealCardProps) => {
   const cardPalette = palette || {
     card: colors.card,
     text: colors.text,
@@ -32,12 +34,12 @@ const DealCard = ({ product, onPress, palette }: DealCardProps) => {
     <Pressable
       onPress={onPress}
       style={{
-        width: 150,
+        width,
         backgroundColor: cardPalette.card,
         borderRadius: radius.md,
         borderWidth: 1,
         borderColor: cardPalette.border,
-        marginRight: spacing.md,
+        marginRight,
         overflow: "hidden",
         ...shadows.card,
       }}

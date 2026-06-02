@@ -2,6 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { Dimensions, Platform, Pressable, Text, View } from "react-native";
 
 import { colors, spacing } from "../constants/theme";
+import { defaultBuyerFooterContent } from "../constants/buyerPageContent";
+import { APP_MAX_WIDTH, DESKTOP_BREAKPOINT } from "../constants/layout";
+import type { BuyerFooterContent } from "../types";
 
 const footerColumns = [
   {
@@ -48,8 +51,12 @@ const paymentMethods = [
   "Cash",
 ];
 
-export default function DesktopSiteFooter() {
-  const isDesktopWeb = Platform.OS === "web" && Dimensions.get("window").width >= 1080;
+export default function DesktopSiteFooter({
+  footer = defaultBuyerFooterContent,
+}: {
+  footer?: BuyerFooterContent;
+}) {
+  const isDesktopWeb = Platform.OS === "web" && Dimensions.get("window").width >= DESKTOP_BREAKPOINT;
 
   if (!isDesktopWeb) {
     return null;
@@ -59,7 +66,7 @@ export default function DesktopSiteFooter() {
     <View
       style={{
         marginTop: spacing.xxxl,
-        backgroundColor: "#17212B",
+        backgroundColor: footer.backgroundColor,
         borderTopWidth: 1,
         borderTopColor: "#243243",
       }}
@@ -67,7 +74,7 @@ export default function DesktopSiteFooter() {
       <View
         style={{
           width: "100%",
-          maxWidth: 1480,
+          maxWidth: APP_MAX_WIDTH,
           alignSelf: "center",
           paddingHorizontal: spacing.xl,
           paddingTop: spacing.xxxl,
@@ -99,20 +106,16 @@ export default function DesktopSiteFooter() {
           />
 
           <View style={{ width: 300 }}>
-            <Text style={{ color: "#8FA2B7", fontSize: 12, marginBottom: spacing.lg }}>
+            <Text style={{ color: footer.mutedColor, fontSize: 12, marginBottom: spacing.lg }}>
               Mail Us:
             </Text>
-            <Text style={{ color: colors.white, fontSize: 15, lineHeight: 30, fontWeight: "700" }}>
-              ShopApp Internet Private Limited,{"\n"}
-              Buildings Alyssa, Begonia &{"\n"}
-              Clover Embassy Tech Village,{"\n"}
-              Outer Ring Road, Bengaluru,{"\n"}
-              Karnataka, India
+            <Text style={{ color: footer.textColor, fontSize: 15, lineHeight: 30, fontWeight: "700" }}>
+              {footer.mailAddress}
             </Text>
 
             <Text
               style={{
-                color: "#8FA2B7",
+                color: footer.mutedColor,
                 fontSize: 12,
                 marginTop: spacing.xl,
                 marginBottom: spacing.md,
@@ -134,24 +137,18 @@ export default function DesktopSiteFooter() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name={icon} size={18} color={colors.white} />
+                  <Ionicons name={icon} size={18} color={footer.textColor} />
                 </Pressable>
               ))}
             </View>
           </View>
 
           <View style={{ width: 340 }}>
-            <Text style={{ color: "#8FA2B7", fontSize: 12, marginBottom: spacing.lg }}>
+            <Text style={{ color: footer.mutedColor, fontSize: 12, marginBottom: spacing.lg }}>
               Registered Office Address:
             </Text>
-            <Text style={{ color: colors.white, fontSize: 15, lineHeight: 30, fontWeight: "700" }}>
-              ShopApp Internet Private Limited,{"\n"}
-              Buildings Alyssa, Begonia &{"\n"}
-              Clover Embassy Tech Village,{"\n"}
-              Outer Ring Road, Bengaluru,{"\n"}
-              Karnataka, India{"\n"}
-              CIN: U51109KA2012PTC066107{"\n"}
-              Telephone: 044-45614700
+            <Text style={{ color: footer.textColor, fontSize: 15, lineHeight: 30, fontWeight: "700" }}>
+              {footer.officeAddress}
             </Text>
           </View>
         </View>
@@ -166,7 +163,7 @@ export default function DesktopSiteFooter() {
         <View
           style={{
             width: "100%",
-            maxWidth: 1480,
+            maxWidth: APP_MAX_WIDTH,
             alignSelf: "center",
             paddingHorizontal: spacing.xl,
             paddingVertical: spacing.lg,
@@ -177,15 +174,18 @@ export default function DesktopSiteFooter() {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xl }}>
-            {footerQuickLinks.map((item) => (
-              <Pressable key={item.label} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                <Ionicons name={item.icon} size={16} color="#FACC15" />
-                <Text style={{ color: colors.white, fontSize: 15 }}>{item.label}</Text>
-              </Pressable>
-            ))}
+            {footer.quickLinks.map((label, index) => {
+              const icon = footerQuickLinks[index]?.icon || "help-circle-outline";
+              return (
+                <Pressable key={`${label}-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                  <Ionicons name={icon} size={16} color="#FACC15" />
+                  <Text style={{ color: footer.textColor, fontSize: 15 }}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <Text style={{ color: colors.white, fontSize: 15 }}>(c) 2007-2026 ShopApp.com</Text>
+          <Text style={{ color: footer.textColor, fontSize: 15 }}>{footer.copyright}</Text>
 
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             {paymentMethods.map((item) => (

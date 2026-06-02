@@ -35,12 +35,12 @@ import { formatCurrency, formatDate } from "../../lib/utils";
 import { CartStoreState, useCartStore } from "../../store/cartStore";
 import { Product, Review } from "../../types";
 
-const CompactCard = ({ product, onPress }: { product: Product; onPress: () => void }) => (
+const CompactCard = ({ product, marginRight = spacing.md, onPress }: { product: Product; marginRight?: number; onPress: () => void }) => (
   <Pressable
     onPress={onPress}
     style={{
       width: 180,
-      marginRight: spacing.md,
+      marginRight,
       backgroundColor: colors.white,
       borderRadius: radius.lg,
       borderWidth: 1,
@@ -945,33 +945,57 @@ export default function ProductDetailScreen() {
           {similarProducts.length > 0 ? (
             <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.xl }}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>Similar Products</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
-                {similarProducts.map((item) => (
-                  <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
-                ))}
-              </ScrollView>
+              {isDesktopWeb ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, marginTop: spacing.lg, paddingRight: spacing.lg }}>
+                  {similarProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} marginRight={0} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
+                  {similarProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ) : null}
 
           {sameCategoryProducts.length > 0 ? (
             <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.xl }}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>More in {product.category}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
-                {sameCategoryProducts.map((item) => (
-                  <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
-                ))}
-              </ScrollView>
+              {isDesktopWeb ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, marginTop: spacing.lg, paddingRight: spacing.lg }}>
+                  {sameCategoryProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} marginRight={0} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
+                  {sameCategoryProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ) : null}
 
           {sameSellerProducts.length > 0 ? (
             <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.xl }}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>More from {product.sellerName}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
-                {sameSellerProducts.map((item) => (
-                  <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
-                ))}
-              </ScrollView>
+              {isDesktopWeb ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, marginTop: spacing.lg, paddingRight: spacing.lg }}>
+                  {sameSellerProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} marginRight={0} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ marginTop: spacing.lg }}>
+                  {sameSellerProducts.map((item) => (
+                    <CompactCard key={item.id} product={item} onPress={() => router.push(`/product/${item.id}`)} />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ) : null}
 

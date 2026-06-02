@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Dimensions, Pressable, Text, View } from "react-native";
+import { DimensionValue, Pressable, Text, useWindowDimensions, View } from "react-native";
 
 import { colors, radius, shadows, spacing } from "../constants/theme";
 import { formatCurrency } from "../lib/utils";
@@ -21,6 +21,7 @@ interface ProductCardProps {
     imageFallback: string;
     primary: string;
   };
+  cardWidth?: DimensionValue;
 }
 
 const ProductCard = ({
@@ -30,11 +31,14 @@ const ProductCard = ({
   onToggleWishlist,
   inWishlist = false,
   palette,
+  cardWidth: explicitCardWidth,
 }: ProductCardProps) => {
-  const windowWidth = Dimensions.get("window").width;
+  const { width: windowWidth } = useWindowDimensions();
   const rawCardWidth = (windowWidth - spacing.lg * 2 - spacing.md) / 2;
-  const cardWidth = windowWidth >= 768 ? Math.min(rawCardWidth, 220) : rawCardWidth;
-  const imageHeight = Math.max(144, Math.min(180, cardWidth * 0.95));
+  const fallbackCardWidth = windowWidth >= 768 ? Math.min(rawCardWidth, 220) : rawCardWidth;
+  const numericCardWidth =
+    typeof explicitCardWidth === "number" ? explicitCardWidth : fallbackCardWidth;
+  const imageHeight = Math.max(144, Math.min(180, numericCardWidth * 0.95));
   const cardPalette = palette || {
     card: colors.card,
     text: colors.text,
@@ -48,7 +52,7 @@ const ProductCard = ({
     <Pressable
       onPress={onPress}
       style={{
-        width: cardWidth,
+        width: explicitCardWidth || fallbackCardWidth,
         backgroundColor: cardPalette.card,
         borderRadius: radius.md,
         borderWidth: 1,

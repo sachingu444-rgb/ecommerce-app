@@ -5,12 +5,18 @@ import { Platform, Pressable, SafeAreaView, ScrollView, Text, useWindowDimension
 
 import EmptyState from "../../components/EmptyState";
 import SmartImage from "../../components/SmartImage";
-import { defaultBuyerPageContent } from "../../constants/buyerPageContent";
+import {
+  defaultBuyerMainHomeCategoryPage,
+  defaultBuyerPageContent,
+  mainHomeCategoryPageId,
+} from "../../constants/buyerPageContent";
+import { APP_MAX_WIDTH, CATEGORY_BANNER_ASPECT_RATIO, DESKTOP_BREAKPOINT } from "../../constants/layout";
 import { colors, radius, spacing } from "../../constants/theme";
 import { subscribeToActiveProducts, subscribeToBuyerPageContent } from "../../lib/firebaseApi";
 import { BuyerCategoryPage, Product } from "../../types";
 
 const fallbackCategoryPage = defaultBuyerPageContent.categoryPages[0];
+const CATEGORY_PAGE_MAX_WIDTH = 1200;
 
 const resolveCategoryPage = (pages: BuyerCategoryPage[], id?: string): BuyerCategoryPage =>
   pages.find((page) => page.id === id) || fallbackCategoryPage;
@@ -19,13 +25,13 @@ const CategoryProductTile = ({
   product,
   buttonLabel,
   width,
-  gap,
+  marginRight,
   onPress,
 }: {
   product: Product;
   buttonLabel: string;
   width: number;
-  gap: number;
+  marginRight: number;
   onPress: () => void;
 }) => (
   <Pressable
@@ -36,7 +42,7 @@ const CategoryProductTile = ({
       borderRadius: 8,
       backgroundColor: colors.white,
       padding: spacing.xs,
-      marginRight: gap,
+      marginRight,
       borderWidth: 1,
       borderColor: "rgba(15,23,42,0.08)",
     }}
@@ -71,11 +77,10 @@ export default function BuyerCategoryScreen() {
   const horizontalGap = categoryPage.horizontalGap ?? 8;
   const verticalGap = categoryPage.verticalGap ?? 24;
   const tileSize = categoryPage.tileSize || 106;
-  const bannerHeight = categoryPage.bannerHeight || 247;
-  const isDesktopWeb = Platform.OS === "web" && windowWidth >= 1080;
+  const isDesktopWeb = Platform.OS === "web" && windowWidth >= DESKTOP_BREAKPOINT;
   const contentHorizontalPadding = isDesktopWeb ? spacing.xl : spacing.lg;
   const contentWidth = isDesktopWeb
-    ? Math.min(windowWidth - contentHorizontalPadding * 2, 1480)
+    ? Math.min(windowWidth - contentHorizontalPadding * 2, CATEGORY_PAGE_MAX_WIDTH)
     : windowWidth - contentHorizontalPadding * 2;
   const requestedColumns = isDesktopWeb
     ? categoryPage.columns || 4
@@ -83,9 +88,11 @@ export default function BuyerCategoryScreen() {
   const productWidth = isDesktopWeb
     ? Math.min(220, Math.max(160, (contentWidth - horizontalGap * (requestedColumns - 1)) / requestedColumns))
     : Math.max(148, (contentWidth - horizontalGap * (requestedColumns - 1)) / requestedColumns);
+  const bannerGap = isDesktopWeb ? spacing.xl : spacing.xl;
   const bannerWidth = isDesktopWeb
-    ? Math.min(506, Math.max(280, (contentWidth - spacing.xl * 2) / 3))
+    ? Math.min(460, Math.max(360, contentWidth * 0.38))
     : Math.min(contentWidth, 506);
+  const desktopTileSize = isDesktopWeb ? Math.min(tileSize, 82) : tileSize;
 
   useEffect(() => {
     const unsubscribe = subscribeToActiveProducts(setProducts);
@@ -93,9 +100,17 @@ export default function BuyerCategoryScreen() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToBuyerPageContent((content) => setCategoryPages(content.categoryPages));
+    const unsubscribe = subscribeToBuyerPageContent((content) =>
+      setCategoryPages(content.categoryPages.filter((page) => page.id !== mainHomeCategoryPageId))
+    );
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (params.id === mainHomeCategoryPageId) {
+      router.replace("/");
+    }
+  }, [params.id, router]);
 
   const pageProducts = useMemo(
     () =>
@@ -120,7 +135,7 @@ export default function BuyerCategoryScreen() {
           <View
             style={{
               width: "100%",
-              maxWidth: isDesktopWeb ? 1480 : undefined,
+              maxWidth: isDesktopWeb ? CATEGORY_PAGE_MAX_WIDTH : undefined,
               alignSelf: isDesktopWeb ? "center" : undefined,
               paddingHorizontal: contentHorizontalPadding,
             }}
@@ -132,13 +147,21 @@ export default function BuyerCategoryScreen() {
                 alignItems: "center",
               }}
             >
-              {categoryPages.map((page) => {
-                const active = page.id === categoryPage.id;
+              {[defaultBuyerMainHomeCategoryPage, ...categoryPages].map((page) => {
+                const isMainHome = page.id === mainHomeCategoryPageId;
+                const active = !isMainHome && page.id === categoryPage.id;
 
                 return (
                   <Pressable
                     key={page.id}
-                    onPress={() => router.push({ pathname: "/category/[id]", params: { id: page.id } })}
+                    onPress={() => {
+                      if (isMainHome) {
+                        router.push("/");
+                        return;
+                      }
+
+                      router.push({ pathname: "/category/[id]", params: { id: page.id } });
+                    }}
                     style={{
                       width: 92,
                       alignItems: "center",
@@ -169,7 +192,7 @@ export default function BuyerCategoryScreen() {
                       style={{ color: colors.text, fontWeight: active ? "900" : "700", fontSize: 13, textAlign: "center" }}
                       numberOfLines={1}
                     >
-                      {page.label}
+                      {isMainHome ? "For You" : page.label}
                     </Text>
                   </Pressable>
                 );
@@ -183,46 +206,102 @@ export default function BuyerCategoryScreen() {
             paddingHorizontal: contentHorizontalPadding,
             paddingTop: spacing.lg,
             width: "100%",
-            maxWidth: isDesktopWeb ? 1480 : undefined,
+            maxWidth: isDesktopWeb ? CATEGORY_PAGE_MAX_WIDTH : undefined,
             alignSelf: isDesktopWeb ? "center" : undefined,
           }}
         >
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {banners.map((banner, index) => (
-              <Pressable
-                key={banner.id}
-                onPress={() => router.push({ pathname: "/search", params: { category: banner.linkCategory } })}
-                style={{
-                  width: bannerWidth,
-                  height: bannerHeight,
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  marginRight: index === banners.length - 1 ? 0 : spacing.xl,
-                  backgroundColor: colors.bg,
-                }}
-              >
-                <SmartImage uri={banner.image} width="100%" height="100%" resizeMode="cover" />
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {tiles.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg }}>
-              {tiles.map((tile) => (
+          {isDesktopWeb ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {banners.map((banner) => (
                 <Pressable
-                  key={tile.id}
-                  onPress={() => router.push({ pathname: "/search", params: { category: tile.linkCategory } })}
-                  style={{ width: tileSize, marginRight: horizontalGap, alignItems: "center" }}
+                  key={banner.id}
+                  onPress={() => router.push({ pathname: "/search", params: { category: banner.linkCategory } })}
+                  style={{
+                    width: bannerWidth,
+                    aspectRatio: CATEGORY_BANNER_ASPECT_RATIO,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    marginRight: bannerGap,
+                    backgroundColor: colors.white,
+                    borderWidth: 1,
+                    borderColor: "rgba(15,23,42,0.08)",
+                  }}
                 >
-                  <View style={{ width: tileSize, height: tileSize, borderRadius: 10, overflow: "hidden", backgroundColor: "#FFF5C7" }}>
-                    <SmartImage uri={tile.image} width="100%" height="100%" resizeMode="cover" />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800", marginTop: spacing.xs, textAlign: "center" }} numberOfLines={1}>
-                    {tile.label}
-                  </Text>
+                  <SmartImage
+                    uri={banner.image}
+                    width="100%"
+                    height="100%"
+                    resizeMode="contain"
+                    fallbackColor={colors.white}
+                  />
                 </Pressable>
               ))}
             </ScrollView>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {banners.map((banner, index) => (
+                <Pressable
+                  key={banner.id}
+                  onPress={() => router.push({ pathname: "/search", params: { category: banner.linkCategory } })}
+                  style={{
+                    width: bannerWidth,
+                    aspectRatio: CATEGORY_BANNER_ASPECT_RATIO,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    marginRight: index === banners.length - 1 ? 0 : spacing.xl,
+                    backgroundColor: colors.white,
+                    borderWidth: 1,
+                    borderColor: "rgba(15,23,42,0.08)",
+                  }}
+                >
+                  <SmartImage
+                    uri={banner.image}
+                    width="100%"
+                    height="100%"
+                    resizeMode="contain"
+                    fallbackColor={colors.white}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          {tiles.length > 0 ? (
+            isDesktopWeb ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.xl }}>
+                {tiles.map((tile, index) => (
+                  <Pressable
+                    key={tile.id}
+                    onPress={() => router.push({ pathname: "/search", params: { category: tile.linkCategory } })}
+                    style={{ width: desktopTileSize, alignItems: "center", marginRight: index === tiles.length - 1 ? 0 : horizontalGap }}
+                  >
+                    <View style={{ width: desktopTileSize, height: desktopTileSize, borderRadius: 8, overflow: "hidden", backgroundColor: "#E0F7FA" }}>
+                      <SmartImage uri={tile.image} width="100%" height="100%" resizeMode="cover" />
+                    </View>
+                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800", marginTop: spacing.xs, textAlign: "center" }} numberOfLines={1}>
+                      {tile.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: spacing.lg }}>
+                {tiles.map((tile) => (
+                  <Pressable
+                    key={tile.id}
+                    onPress={() => router.push({ pathname: "/search", params: { category: tile.linkCategory } })}
+                    style={{ width: tileSize, marginRight: horizontalGap, alignItems: "center" }}
+                  >
+                    <View style={{ width: tileSize, height: tileSize, borderRadius: 10, overflow: "hidden", backgroundColor: "#FFF5C7" }}>
+                      <SmartImage uri={tile.image} width="100%" height="100%" resizeMode="cover" />
+                    </View>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800", marginTop: spacing.xs, textAlign: "center" }} numberOfLines={1}>
+                      {tile.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )
           ) : null}
 
           <View
@@ -254,6 +333,19 @@ export default function BuyerCategoryScreen() {
                 buttonLabel="Back Home"
                 onPress={() => router.push("/")}
               />
+            ) : isDesktopWeb ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {pageProducts.slice(0, categoryPage.productCount || 8).map((product, index, visibleProducts) => (
+                  <CategoryProductTile
+                    key={product.id}
+                    product={product}
+                    buttonLabel={categoryPage.productCardCta || "View Store"}
+                    width={productWidth}
+                    marginRight={index === visibleProducts.length - 1 ? 0 : horizontalGap}
+                    onPress={() => router.push(`/product/${product.id}`)}
+                  />
+                ))}
+              </ScrollView>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {pageProducts.slice(0, categoryPage.productCount || 8).map((product, index, visibleProducts) => (
@@ -262,7 +354,7 @@ export default function BuyerCategoryScreen() {
                     product={product}
                     buttonLabel={categoryPage.productCardCta || "View Store"}
                     width={productWidth}
-                    gap={index === visibleProducts.length - 1 ? 0 : horizontalGap}
+                    marginRight={index === visibleProducts.length - 1 ? 0 : horizontalGap}
                     onPress={() => router.push(`/product/${product.id}`)}
                   />
                 ))}

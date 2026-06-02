@@ -5,7 +5,6 @@ import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   Platform,
   Pressable,
   SafeAreaView,
@@ -14,6 +13,7 @@ import {
   Text,
   TextInput,
   useColorScheme,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from "react-native";
@@ -22,8 +22,15 @@ import CategoryChip from "../../components/CategoryChip";
 import DesktopSiteFooter from "../../components/DesktopSiteFooter";
 import DealCard from "../../components/DealCard";
 import ProductCard from "../../components/ProductCard";
+import ResponsiveGrid from "../../components/ResponsiveGrid";
 import SmartImage from "../../components/SmartImage";
-import { defaultBuyerCategoryPages, defaultBuyerPageContent, normalizeBuyerHomeSectionOrder } from "../../constants/buyerPageContent";
+import {
+  defaultBuyerMainHomeCategoryPage,
+  defaultBuyerPageContent,
+  mainHomeCategoryPageId,
+  normalizeBuyerHomeSectionOrder,
+} from "../../constants/buyerPageContent";
+import { APP_MAX_WIDTH, DESKTOP_BREAKPOINT } from "../../constants/layout";
 import { categoryList } from "../../constants/mockData";
 import { colors, radius, spacing } from "../../constants/theme";
 import { useAuth } from "../../hooks/useAuth";
@@ -81,6 +88,12 @@ interface LovedOneItem {
   subtitle: string;
   image: string;
   category: string;
+  cardBackground?: string;
+  overlayStart?: string;
+  overlayEnd?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  cardHeight?: number;
 }
 
 interface PremiumHeroItem {
@@ -93,6 +106,15 @@ interface PremiumHeroItem {
   category: string;
   accent: string;
   endTime?: number;
+  heroHeight?: number;
+  bannerBackground?: string;
+  overlayStart?: string;
+  overlayEnd?: string;
+  textColor?: string;
+  subtitleColor?: string;
+  eyebrowColor?: string;
+  offerButtonColor?: string;
+  offerTextColor?: string;
 }
 
 interface PromoGridItem {
@@ -535,6 +557,8 @@ const lovedOneItems: LovedOneItem[] = [
 const resolveDesktopCategoryId = (category: string) =>
   desktopCategoryItems.find((item) => item.category === category)?.id || "for-you";
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 const HomeDesktopCategoryButton = ({
   item,
   active,
@@ -555,58 +579,148 @@ const HomeDesktopCategoryButton = ({
   onPress: () => void;
 }) => {
   const highlighted = active || hovered;
+  const compactAnim = useRef(new Animated.Value(compact ? 1 : 0)).current;
+  const highlightAnim = useRef(new Animated.Value(highlighted ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(compactAnim, {
+      toValue: compact ? 1 : 0,
+      duration: 240,
+      useNativeDriver: false,
+    }).start();
+  }, [compact, compactAnim]);
+
+  useEffect(() => {
+    Animated.spring(highlightAnim, {
+      toValue: highlighted ? 1 : 0,
+      friction: 8,
+      tension: 90,
+      useNativeDriver: false,
+    }).start();
+  }, [highlightAnim, highlighted]);
+
+  const buttonWidth = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [100, 112],
+  });
+  const buttonMinHeight = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [94, 50],
+  });
+  const iconSize = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [42, 0],
+  });
+  const iconRadius = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [14, 0],
+  });
+  const iconTranslateY = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -12],
+  });
+  const iconOpacity = compactAnim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [1, 0.2, 0],
+  });
+  const compactIconScale = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.6],
+  });
+  const labelMarginTop = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [spacing.sm, 0],
+  });
+  const labelMinHeight = compactAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [32, 20],
+  });
+  const hoverLift = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, hovered && !active ? -3 : 0],
+  });
+  const iconScale = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.08],
+  });
+  const activeLineWidth = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 32],
+  });
+  const activeLineOpacity = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       onHoverIn={onHoverIn}
       onHoverOut={onHoverOut}
       style={{
         alignItems: "center",
         justifyContent: "center",
-        width: compact ? "auto" : 100,
-        minWidth: compact ? 92 : 100,
-        paddingHorizontal: compact ? spacing.lg : spacing.sm,
-        paddingTop: compact ? spacing.sm : spacing.md,
-        paddingBottom: spacing.sm,
-        borderBottomWidth: 3,
-        borderBottomColor: highlighted ? palette.primary : "transparent",
+        width: buttonWidth,
+        minHeight: buttonMinHeight,
+        paddingHorizontal: spacing.sm,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xs,
+        borderBottomWidth: 0,
         backgroundColor: highlighted ? palette.navHover : "transparent",
-        transform: [{ translateY: hovered && !active && !compact ? -2 : 0 }],
+        transform: [{ translateY: hoverLift }],
       }}
     >
-      {!compact ? (
-        <View
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 14,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: highlighted ? `${item.color}14` : "transparent",
-          }}
-        >
-          <Ionicons
-            name={item.icon}
-            size={24}
-            color={highlighted ? item.color : palette.text}
-          />
-        </View>
-      ) : null}
-      <Text
-        numberOfLines={1}
+      <Animated.View
         style={{
-          marginTop: compact ? 0 : spacing.sm,
-          color: highlighted ? palette.text : palette.muted,
-          fontSize: 13,
-          fontWeight: highlighted ? "800" : "600",
-          textAlign: "center",
-          minHeight: compact ? undefined : 32,
+          width: iconSize,
+          height: iconSize,
+          borderRadius: iconRadius,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: highlighted ? `${item.color}1F` : `${item.color}0F`,
+          borderWidth: 1,
+          borderColor: highlighted ? `${item.color}55` : "rgba(100,116,139,0.14)",
+          shadowColor: item.color,
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: highlighted ? 0.18 : 0,
+          shadowRadius: 12,
+          elevation: highlighted ? 3 : 0,
+          opacity: iconOpacity,
+          overflow: "hidden",
+          transform: [{ translateY: iconTranslateY }, { scale: iconScale }, { scale: compactIconScale }],
         }}
       >
-        {item.label}
-      </Text>
-    </Pressable>
+        <Ionicons
+          name={item.icon}
+          size={24}
+          color={highlighted ? item.color : palette.text}
+        />
+      </Animated.View>
+      <Animated.View style={{ marginTop: labelMarginTop, minHeight: labelMinHeight, justifyContent: "center" }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: highlighted ? palette.text : palette.muted,
+            fontSize: 13,
+            fontWeight: highlighted ? "900" : "600",
+            textAlign: "center",
+            maxWidth: 108,
+          }}
+        >
+          {item.label}
+        </Text>
+      </Animated.View>
+      <Animated.View
+        style={{
+          width: activeLineWidth,
+          height: 3,
+          borderRadius: 999,
+          opacity: activeLineOpacity,
+          backgroundColor: item.color,
+          marginTop: 4,
+        }}
+      />
+    </AnimatedPressable>
   );
 };
 
@@ -751,7 +865,7 @@ const PremiumHeroBanner = ({
   onPress: () => void;
   isActive: boolean;
 }) => {
-  const heroHeight = isDesktop ? 400 : 340;
+  const heroHeight = item.heroHeight || (isDesktop ? 400 : 340);
   const imageShift = Math.min(44, Math.max(0, parallaxOffset * 0.16));
   const imageScale = 1 + Math.min(0.08, Math.max(0, parallaxOffset) / 2200);
 
@@ -762,7 +876,7 @@ const PremiumHeroBanner = ({
         height: heroHeight,
         borderRadius: isDesktop ? radius.xl : radius.lg,
         overflow: "hidden",
-        backgroundColor: palette.surface,
+        backgroundColor: item.bannerBackground || palette.surface,
         shadowColor: palette.shadow,
         shadowOffset: { width: 0, height: 22 },
         shadowOpacity: isDesktop ? 0.18 : 0.12,
@@ -792,7 +906,7 @@ const PremiumHeroBanner = ({
       </Animated.View>
 
       <LinearGradient
-        colors={[palette.heroStart, palette.heroEnd]}
+        colors={[item.overlayStart || palette.heroStart, item.overlayEnd || palette.heroEnd]}
         style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
       />
 
@@ -831,7 +945,7 @@ const PremiumHeroBanner = ({
                 backgroundColor: item.accent,
               }}
             />
-            <Text style={{ color: colors.white, fontSize: 12, fontWeight: "900" }}>
+            <Text style={{ color: item.eyebrowColor || colors.white, fontSize: 12, fontWeight: "900" }}>
               {item.eyebrow.toUpperCase()}
             </Text>
           </View>
@@ -857,7 +971,7 @@ const PremiumHeroBanner = ({
         <View style={{ maxWidth: isDesktop ? 680 : 320 }}>
           <Text
             style={{
-              color: colors.white,
+              color: item.textColor || colors.white,
               fontSize: isDesktop ? 54 : 34,
               lineHeight: isDesktop ? 58 : 38,
               fontWeight: "900",
@@ -867,7 +981,7 @@ const PremiumHeroBanner = ({
           </Text>
           <Text
             style={{
-              color: "rgba(255,255,255,0.82)",
+              color: item.subtitleColor || "rgba(255,255,255,0.82)",
               fontSize: isDesktop ? 18 : 15,
               lineHeight: isDesktop ? 28 : 22,
               marginTop: spacing.md,
@@ -890,13 +1004,13 @@ const PremiumHeroBanner = ({
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
             <View
               style={{
-                backgroundColor: item.accent,
+                backgroundColor: item.offerButtonColor || item.accent,
                 borderRadius: radius.md,
                 paddingHorizontal: spacing.lg,
                 paddingVertical: spacing.sm,
               }}
             >
-              <Text style={{ color: "#111827", fontSize: 14, fontWeight: "900" }}>
+              <Text style={{ color: item.offerTextColor || "#111827", fontSize: 14, fontWeight: "900" }}>
                 {item.offer}
               </Text>
             </View>
@@ -1241,18 +1355,19 @@ const SaleBannerCard = ({
 const VisualCategoryTile = ({
   item,
   palette,
+  width = 96,
   onPress,
 }: {
   item: VisualCategoryItem;
   palette: HomePalette;
+  width?: number;
   onPress: () => void;
 }) => (
   <Pressable
     onPress={onPress}
     style={{
-      width: 96,
+      width,
       alignItems: "center",
-      marginRight: spacing.xl,
       marginBottom: spacing.md,
     }}
   >
@@ -1304,11 +1419,13 @@ const VisualCategoryTile = ({
 const LovedOneCard = ({
   item,
   width,
+  marginRight = spacing.xl,
   palette,
   onPress,
 }: {
   item: LovedOneItem;
   width: number;
+  marginRight?: number;
   palette: HomePalette;
   onPress: () => void;
 }) => (
@@ -1316,11 +1433,11 @@ const LovedOneCard = ({
     onPress={onPress}
     style={{
       width,
-      height: 170,
+      height: item.cardHeight || 170,
       borderRadius: radius.md,
       overflow: "hidden",
-      backgroundColor: palette.primary,
-      marginRight: spacing.xl,
+      backgroundColor: item.cardBackground || palette.primary,
+      marginRight,
     }}
   >
     <SmartImage
@@ -1333,7 +1450,7 @@ const LovedOneCard = ({
       fallbackColor={palette.imageFallback}
     />
     <LinearGradient
-      colors={["rgba(0,30,80,0.08)", "rgba(0,34,90,0.82)"]}
+      colors={[item.overlayStart || "rgba(0,30,80,0.08)", item.overlayEnd || "rgba(0,34,90,0.82)"]}
       style={{
         position: "absolute",
         top: 0,
@@ -1344,10 +1461,10 @@ const LovedOneCard = ({
         padding: spacing.lg,
       }}
     >
-      <Text style={{ color: colors.white, fontSize: 21, fontWeight: "900" }}>
+      <Text style={{ color: item.titleColor || colors.white, fontSize: 21, fontWeight: "900" }}>
         {item.title}
       </Text>
-      <Text style={{ color: "rgba(255,255,255,0.84)", marginTop: 4, fontWeight: "700" }}>
+      <Text style={{ color: item.subtitleColor || "rgba(255,255,255,0.84)", marginTop: 4, fontWeight: "700" }}>
         {item.subtitle}
       </Text>
     </LinearGradient>
@@ -1357,11 +1474,13 @@ const LovedOneCard = ({
 const MediaShowcaseCard = ({
   item,
   width,
+  marginRight = spacing.md,
   autoplay,
   onPress,
 }: {
   item: BuyerMediaShowcaseItem;
   width: number;
+  marginRight?: number;
   autoplay: boolean;
   onPress: () => void;
 }) => {
@@ -1372,7 +1491,7 @@ const MediaShowcaseCard = ({
       onPress={onPress}
       style={{
         width,
-        marginRight: spacing.md,
+        marginRight,
         alignItems: "center",
       }}
     >
@@ -1444,7 +1563,7 @@ const MediaShowcaseSection = ({
   const stepWidth = itemWidth + spacing.md;
 
   useEffect(() => {
-    if (!autoplay || items.length <= 1) {
+    if (isDesktop || !autoplay || items.length <= 1) {
       return;
     }
 
@@ -1455,7 +1574,7 @@ const MediaShowcaseSection = ({
     }, 3200);
 
     return () => clearInterval(timer);
-  }, [autoplay, items.length, stepWidth]);
+  }, [autoplay, isDesktop, items.length, stepWidth]);
 
   if (items.length === 0) {
     return null;
@@ -1473,22 +1592,37 @@ const MediaShowcaseSection = ({
       >
         {title}
       </Text>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingRight: spacing.xl }}
-      >
-        {items.map((item) => (
-          <MediaShowcaseCard
-            key={item.id}
-            item={item}
-            width={itemWidth}
-            autoplay={autoplay}
-            onPress={() => onItemPress(item)}
-          />
-        ))}
-      </ScrollView>
+      {isDesktop ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, paddingRight: spacing.xl }}>
+          {items.map((item) => (
+            <MediaShowcaseCard
+              key={item.id}
+              item={item}
+              width={itemWidth}
+              marginRight={0}
+              autoplay={autoplay}
+              onPress={() => onItemPress(item)}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: spacing.xl }}
+        >
+          {items.map((item) => (
+            <MediaShowcaseCard
+              key={item.id}
+              item={item}
+              width={itemWidth}
+              autoplay={autoplay}
+              onPress={() => onItemPress(item)}
+            />
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -1498,12 +1632,12 @@ export default function HomeTabScreen() {
   const { user, profile } = useAuth();
   const colorScheme = useColorScheme();
   const homeColors = homePalettes[colorScheme === "dark" ? "dark" : "light"];
-  const windowWidth = Dimensions.get("window").width;
-  const isDesktopWeb = Platform.OS === "web" && windowWidth >= 1080;
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === "web" && windowWidth >= DESKTOP_BREAKPOINT;
   const mobileTopInset = Platform.OS === "android" ? StatusBar.currentHeight || spacing.lg : 0;
   const contentHorizontalPadding = isDesktopWeb ? spacing.xl : spacing.lg;
   const contentWidth = isDesktopWeb
-    ? Math.min(windowWidth - contentHorizontalPadding * 2, 1480)
+    ? Math.min(windowWidth - contentHorizontalPadding * 2, APP_MAX_WIDTH)
     : windowWidth - contentHorizontalPadding * 2;
   const lovedCardWidth = isDesktopWeb
     ? Math.max(300, (contentWidth - spacing.xl * 2) / 3)
@@ -1522,11 +1656,17 @@ export default function HomeTabScreen() {
   const [desktopCategoryCompact, setDesktopCategoryCompact] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [pageContent, setPageContent] = useState<BuyerPageContent>(defaultBuyerPageContent);
+  const categoryBarAnim = useRef(new Animated.Value(0)).current;
   const desktopCategoryItems = useMemo<DesktopCategoryItem[]>(
     () =>
-      (pageContent.categoryPages || defaultBuyerCategoryPages).map((item) => ({
+      [
+        defaultBuyerMainHomeCategoryPage,
+        ...(pageContent.categoryPages || defaultBuyerPageContent.categoryPages).filter(
+          (item) => item.id !== mainHomeCategoryPageId
+        ),
+      ].map((item) => ({
         id: item.id,
-        label: item.label,
+        label: item.id === mainHomeCategoryPageId ? "For You" : item.label,
         category: item.category,
         icon: item.icon as keyof typeof Ionicons.glyphMap,
         color: item.accent,
@@ -1541,6 +1681,9 @@ export default function HomeTabScreen() {
   const getHomeSectionOrder = (section: BuyerHomeSectionKey) => homeSectionOrder.indexOf(section);
   const isHomeSectionHidden = (section: BuyerHomeSectionKey) =>
     hiddenHomeSections.includes(section);
+  const headerContent = pageContent.header;
+  const footerContent = pageContent.footer;
+  const stickyHeaderPosition = "sticky" as unknown as ViewStyle["position"];
   const premiumHeroItems = useMemo<PremiumHeroItem[]>(
     () =>
       isHomeSectionHidden("hero") ? [] : homeContent.heroes.map((hero) => ({
@@ -1600,6 +1743,19 @@ export default function HomeTabScreen() {
 
     return () => clearInterval(timer);
   }, [premiumHeroItems.length]);
+
+  useEffect(() => {
+    Animated.timing(categoryBarAnim, {
+      toValue: desktopCategoryCompact ? 1 : 0,
+      duration: 240,
+      useNativeDriver: false,
+    }).start();
+  }, [categoryBarAnim, desktopCategoryCompact]);
+
+  const desktopCategoryBarHeight = categoryBarAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [104, 52],
+  });
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -1833,7 +1989,7 @@ export default function HomeTabScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: homeColors.bg }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={isDesktopWeb ? [0, 1] : undefined}
+        contentContainerStyle={{ width: "100%" }}
         scrollEventThrottle={16}
         onScrollBeginDrag={closeOpenMenu}
         onScroll={(event) => {
@@ -1851,26 +2007,52 @@ export default function HomeTabScreen() {
         }}
       >
         {isDesktopWeb ? (
-          <>
+          <View
+            style={{
+              position: stickyHeaderPosition,
+              top: 0,
+              zIndex: 10000,
+              elevation: 30,
+              backgroundColor: homeColors.headerBg,
+              width: "100%",
+            }}
+          >
             <View
               style={{
-                backgroundColor: homeColors.headerBg,
+                minHeight: headerContent.announcement ? 32 : 0,
+                backgroundColor: headerContent.accentColor || homeColors.accent,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: spacing.lg,
+              }}
+            >
+              {headerContent.announcement ? (
+                <Text style={{ color: colors.white, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>
+                  {headerContent.announcement}
+                </Text>
+              ) : null}
+            </View>
+            <View
+              style={{
+                backgroundColor: headerContent.backgroundColor || homeColors.headerBg,
                 borderBottomWidth: 1,
                 borderBottomColor: homeColors.headerBorder,
                 position: "relative",
-                zIndex: 90,
+                zIndex: 1000,
+                elevation: 20,
                 overflow: "visible",
               }}
             >
               <View
                 style={{
                   width: "100%",
-                  maxWidth: 1480,
+                  maxWidth: APP_MAX_WIDTH,
                   alignSelf: "center",
                   paddingHorizontal: spacing.xl,
                   paddingVertical: spacing.md,
                   position: "relative",
-                  zIndex: 90,
+                  zIndex: 1000,
+                  elevation: 20,
                   overflow: "visible",
                 }}
               >
@@ -1883,7 +2065,7 @@ export default function HomeTabScreen() {
                       left: 0,
                       right: 0,
                       height: 4000,
-                      zIndex: 120,
+                      zIndex: 1010,
                       backgroundColor: "transparent",
                     }}
                   />
@@ -1895,7 +2077,7 @@ export default function HomeTabScreen() {
                     alignItems: "center",
                     gap: spacing.lg,
                     position: "relative",
-                    zIndex: 150,
+                    zIndex: 1020,
                     overflow: "visible",
                   }}
                 >
@@ -1907,7 +2089,7 @@ export default function HomeTabScreen() {
                       router.push("/");
                     }}
                     style={{
-                      backgroundColor: homeColors.accent,
+                      backgroundColor: headerContent.accentColor || homeColors.accent,
                       borderRadius: radius.lg,
                       paddingHorizontal: spacing.lg,
                       paddingVertical: spacing.md,
@@ -1918,7 +2100,7 @@ export default function HomeTabScreen() {
                   >
                     <Ionicons name="bag-handle" size={22} color={homeColors.inverseText} />
                     <Text style={{ color: homeColors.inverseText, fontWeight: "900", fontSize: 22 }}>
-                      SachinIndia
+                      {headerContent.logoText}
                     </Text>
                     <Ionicons name="chevron-down" size={16} color={homeColors.inverseText} />
                   </Pressable>
@@ -1941,7 +2123,7 @@ export default function HomeTabScreen() {
                       value={searchText}
                       onChangeText={setSearchText}
                       onSubmitEditing={openSearchResults}
-                      placeholder="Search for Products, Brands and More"
+                      placeholder={headerContent.searchPlaceholder}
                       placeholderTextColor={homeColors.muted}
                       style={{
                         flex: 1,
@@ -1984,7 +2166,7 @@ export default function HomeTabScreen() {
                         }}
                       >
                         <Ionicons name="person-circle-outline" size={25} color={homeColors.text} />
-                        <Text style={{ color: homeColors.text, fontSize: 15, fontWeight: "700" }}>
+                        <Text style={{ color: headerContent.textColor || homeColors.text, fontSize: 15, fontWeight: "700" }}>
                           {user ? profile?.name?.split(" ")[0] || "Account" : "Login"}
                         </Text>
                         <Ionicons
@@ -2080,7 +2262,7 @@ export default function HomeTabScreen() {
                           backgroundColor: openMenu === "more" ? homeColors.primarySoft : "transparent",
                         }}
                       >
-                        <Text style={{ color: homeColors.text, fontSize: 15, fontWeight: "700" }}>
+                          <Text style={{ color: headerContent.textColor || homeColors.text, fontSize: 15, fontWeight: "700" }}>
                           More
                         </Text>
                         <Ionicons
@@ -2143,7 +2325,7 @@ export default function HomeTabScreen() {
                       }}
                     >
                       <View style={{ position: "relative" }}>
-                        <Ionicons name="cart-outline" size={26} color={homeColors.text} />
+                        <Ionicons name="cart-outline" size={26} color={headerContent.textColor || homeColors.text} />
                         {totalItems > 0 ? (
                           <View
                             style={{
@@ -2165,31 +2347,33 @@ export default function HomeTabScreen() {
                           </View>
                         ) : null}
                       </View>
-                      <Text style={{ color: homeColors.text, fontSize: 15, fontWeight: "700" }}>Cart</Text>
+                      <Text style={{ color: headerContent.textColor || homeColors.text, fontSize: 15, fontWeight: "700" }}>Cart</Text>
                     </Pressable>
                   </View>
                 </View>
               </View>
             </View>
 
-            <View
+            <Animated.View
               style={{
                 backgroundColor: homeColors.headerBg,
                 borderBottomWidth: 1,
                 borderBottomColor: homeColors.headerBorder,
                 position: "relative",
-                zIndex: 40,
-                minHeight: desktopCategoryCompact ? 50 : 98,
+                zIndex: 900,
+                elevation: 18,
+                height: desktopCategoryBarHeight,
+                overflow: "hidden",
               }}
             >
               <View
                 style={{
                   width: "100%",
-                  maxWidth: 1480,
+                  maxWidth: APP_MAX_WIDTH,
                   alignSelf: "center",
                   paddingHorizontal: spacing.xl,
                   position: "relative",
-                  zIndex: 40,
+                  zIndex: 900,
                 }}
               >
                 <ScrollView
@@ -2216,14 +2400,19 @@ export default function HomeTabScreen() {
                         closeOpenMenu();
                         setActiveDesktopCategoryId(item.id);
                         setActiveCategory(item.category);
+                        if (item.id === mainHomeCategoryPageId) {
+                          router.push("/");
+                          return;
+                        }
+
                         router.push({ pathname: "/category/[id]", params: { id: item.id } });
                       }}
                     />
                   ))}
                 </ScrollView>
               </View>
-            </View>
-          </>
+            </Animated.View>
+          </View>
         ) : null}
 
         {!isDesktopWeb ? (
@@ -2378,10 +2567,10 @@ export default function HomeTabScreen() {
             paddingTop: spacing.lg,
             paddingBottom: 120,
             width: "100%",
-            maxWidth: isDesktopWeb ? 1480 : undefined,
+            maxWidth: isDesktopWeb ? APP_MAX_WIDTH : undefined,
             alignSelf: isDesktopWeb ? "center" : undefined,
             position: "relative",
-            zIndex: 1,
+            zIndex: 0,
           }}
         >
           {profile?.role === "seller" ? (
@@ -2438,7 +2627,7 @@ export default function HomeTabScreen() {
                 isActive={true}
               />
 
-              <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
+              <View style={{ flexDirection: "row", justifyContent: "center", marginTop: spacing.md, marginBottom: spacing.md, gap: spacing.sm }}>
                 {premiumHeroItems.map((hero, index) => {
                   const active = bannerIndex % premiumHeroItems.length === index;
 
@@ -2485,24 +2674,112 @@ export default function HomeTabScreen() {
               >
                 Brands in Spotlight
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {brandSpotlightItems.map((item) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={item.id}
-                    onPress={() => {
-                      setActiveCategory(item.category);
-                      setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
-                      router.push({ pathname: "/search", params: { category: item.category } });
-                    }}
-                    style={{
-                      width: isDesktopWeb ? 260 : 210,
-                      marginRight: spacing.lg,
-                    }}
-                  >
+              {isDesktopWeb ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.lg, paddingRight: spacing.xl }}>
+                  {brandSpotlightItems.map((item) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={item.id}
+                      onPress={() => {
+                        setActiveCategory(item.category);
+                        setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                        router.push({ pathname: "/search", params: { category: item.category } });
+                      }}
+                      style={{
+                        width: 260,
+                        backgroundColor: item.cardBackground || "transparent",
+                      }}
+                    >
+                      <View
+                        style={{
+                          height: item.cardHeight || 255,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          backgroundColor: homeColors.imageFallback,
+                        }}
+                      >
+                        <SmartImage uri={item.image} width="100%" height="100%" resizeMode="cover" />
+                        <Text
+                          style={{
+                            position: "absolute",
+                            top: spacing.sm,
+                            left: spacing.sm,
+                            color: item.brandColor || colors.white,
+                            fontSize: 20,
+                            fontWeight: "900",
+                          }}
+                        >
+                          {item.brand}
+                        </Text>
+                        {item.badge ? (
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: spacing.sm,
+                              right: spacing.sm,
+                              borderRadius: 5,
+                              backgroundColor: item.badgeBackground || "rgba(255,255,255,0.58)",
+                              paddingHorizontal: spacing.xs,
+                              paddingVertical: 3,
+                            }}
+                          >
+                            <Text style={{ color: item.badgeTextColor || colors.white, fontSize: 11, fontWeight: "900" }}>
+                              {item.badge}
+                            </Text>
+                          </View>
+                        ) : null}
+                        <View
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            minHeight: 40,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: item.titleBarColor || "#F4FF00",
+                          }}
+                        >
+                          <Text style={{ color: item.titleColor || "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text
+                        style={{
+                          color: item.subtitleColor || homeColors.text,
+                          fontSize: 20,
+                          textAlign: "center",
+                          marginTop: spacing.xs,
+                          fontWeight: "500",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.subtitle}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {brandSpotlightItems.map((item) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={item.id}
+                      onPress={() => {
+                        setActiveCategory(item.category);
+                        setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                        router.push({ pathname: "/search", params: { category: item.category } });
+                      }}
+                      style={{
+                        width: 210,
+                        marginRight: spacing.lg,
+                        backgroundColor: item.cardBackground || "transparent",
+                      }}
+                    >
                     <View
                       style={{
-                        height: isDesktopWeb ? 255 : 205,
+                        height: Math.max(170, (item.cardHeight || 255) - 50),
                         borderRadius: 12,
                         overflow: "hidden",
                         backgroundColor: homeColors.imageFallback,
@@ -2514,7 +2791,7 @@ export default function HomeTabScreen() {
                           position: "absolute",
                           top: spacing.sm,
                           left: spacing.sm,
-                          color: colors.white,
+                          color: item.brandColor || colors.white,
                           fontSize: 20,
                           fontWeight: "900",
                         }}
@@ -2528,12 +2805,12 @@ export default function HomeTabScreen() {
                             top: spacing.sm,
                             right: spacing.sm,
                             borderRadius: 5,
-                            backgroundColor: "rgba(255,255,255,0.58)",
+                            backgroundColor: item.badgeBackground || "rgba(255,255,255,0.58)",
                             paddingHorizontal: spacing.xs,
                             paddingVertical: 3,
                           }}
                         >
-                          <Text style={{ color: colors.white, fontSize: 11, fontWeight: "900" }}>
+                          <Text style={{ color: item.badgeTextColor || colors.white, fontSize: 11, fontWeight: "900" }}>
                             {item.badge}
                           </Text>
                         </View>
@@ -2547,17 +2824,17 @@ export default function HomeTabScreen() {
                           minHeight: 40,
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#F4FF00",
+                          backgroundColor: item.titleBarColor || "#F4FF00",
                         }}
                       >
-                        <Text style={{ color: "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
+                        <Text style={{ color: item.titleColor || "#050505", fontSize: 20, fontWeight: "900" }} numberOfLines={1}>
                           {item.title}
                         </Text>
                       </View>
                     </View>
                     <Text
                       style={{
-                        color: homeColors.text,
+                        color: item.subtitleColor || homeColors.text,
                         fontSize: 20,
                         textAlign: "center",
                         marginTop: spacing.xs,
@@ -2567,9 +2844,10 @@ export default function HomeTabScreen() {
                     >
                       {item.subtitle}
                     </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ) : null}
 
@@ -2591,42 +2869,66 @@ export default function HomeTabScreen() {
 
           {visualCategoryItems.length > 0 ? (
             <View style={{ order: getHomeSectionOrder("category") } as ViewStyle}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{
-                  paddingRight: spacing.xl,
-                }}
-              >
-                <View>
-                  <View style={{ flexDirection: "row" }}>
-                    {visualCategoryItems.slice(0, 10).map((item) => (
+              {isDesktopWeb ? (
+                <View style={{ marginTop: spacing.md }}>
+                  <ResponsiveGrid
+                    items={visualCategoryItems}
+                    minItemWidth={112}
+                    maxItemWidth={132}
+                    gap={spacing.md}
+                    horizontalPadding={contentHorizontalPadding}
+                    renderItem={(item, itemWidth) => (
                       <VisualCategoryTile
                         key={item.id}
                         item={item}
+                        width={itemWidth}
                         palette={homeColors}
                         onPress={() => {
                           setActiveCategory(item.category);
                           setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
                         }}
                       />
-                    ))}
-                  </View>
-                  <View style={{ flexDirection: "row" }}>
-                    {visualCategoryItems.slice(10).map((item) => (
-                      <VisualCategoryTile
-                        key={item.id}
-                        item={item}
-                        palette={homeColors}
-                        onPress={() => {
-                          setActiveCategory(item.category);
-                          setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
-                        }}
-                      />
-                    ))}
-                  </View>
+                    )}
+                  />
                 </View>
-              </ScrollView>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{
+                    paddingRight: spacing.lg,
+                  }}
+                >
+                  <View>
+                    <View style={{ flexDirection: "row", gap: spacing.lg }}>
+                      {visualCategoryItems.slice(0, 10).map((item) => (
+                        <VisualCategoryTile
+                          key={item.id}
+                          item={item}
+                          palette={homeColors}
+                          onPress={() => {
+                            setActiveCategory(item.category);
+                            setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <View style={{ flexDirection: "row", gap: spacing.lg }}>
+                      {visualCategoryItems.slice(10).map((item) => (
+                        <VisualCategoryTile
+                          key={item.id}
+                          item={item}
+                          palette={homeColors}
+                          onPress={() => {
+                            setActiveCategory(item.category);
+                            setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                </ScrollView>
+              )}
             </View>
           ) : null}
 
@@ -2644,21 +2946,40 @@ export default function HomeTabScreen() {
                 {homeContent.lovedOnesTitle}
               </Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {lovedOneItems.map((item) => (
-                  <LovedOneCard
-                    key={item.id}
-                    item={item}
-                    width={lovedCardWidth}
-                    palette={homeColors}
-                    onPress={() => {
-                      setActiveCategory(item.category);
-                      setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
-                      router.push({ pathname: "/search", params: { category: item.category } });
-                    }}
-                  />
-                ))}
-              </ScrollView>
+              {isDesktopWeb ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xl, paddingRight: spacing.xl }}>
+                  {lovedOneItems.map((item) => (
+                    <LovedOneCard
+                      key={item.id}
+                      item={item}
+                      width={lovedCardWidth}
+                      marginRight={0}
+                      palette={homeColors}
+                      onPress={() => {
+                        setActiveCategory(item.category);
+                        setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                        router.push({ pathname: "/search", params: { category: item.category } });
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {lovedOneItems.map((item) => (
+                    <LovedOneCard
+                      key={item.id}
+                      item={item}
+                      width={lovedCardWidth}
+                      palette={homeColors}
+                      onPress={() => {
+                        setActiveCategory(item.category);
+                        setActiveDesktopCategoryId(resolveCategoryPageId(item.category));
+                        router.push({ pathname: "/search", params: { category: item.category } });
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           ) : null}
 
@@ -2696,16 +3017,30 @@ export default function HomeTabScreen() {
               onActionPress={() => router.push("/deals")}
             />
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {dealProducts.map((product) => (
-                <DealCard
-                  key={product.id}
-                  product={product}
-                  palette={homeCardPalette}
-                  onPress={() => router.push(`/product/${product.id}`)}
-                />
-              ))}
-            </ScrollView>
+            {isDesktopWeb ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md, paddingRight: spacing.xl }}>
+                {dealProducts.map((product) => (
+                  <DealCard
+                    key={product.id}
+                    product={product}
+                    marginRight={0}
+                    palette={homeCardPalette}
+                    onPress={() => router.push(`/product/${product.id}`)}
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {dealProducts.map((product) => (
+                  <DealCard
+                    key={product.id}
+                    product={product}
+                    palette={homeCardPalette}
+                    onPress={() => router.push(`/product/${product.id}`)}
+                  />
+                ))}
+              </ScrollView>
+            )}
 
             <SectionHeader
               title={homeContent.featuredTitle}
@@ -2726,17 +3061,23 @@ export default function HomeTabScreen() {
                 <ActivityIndicator size="large" color={colors.primary} />
               </View>
             ) : (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-                {featuredProducts.map((product) => (
+              <ResponsiveGrid
+                items={featuredProducts}
+                minItemWidth={isDesktopWeb ? 210 : 156}
+                maxItemWidth={230}
+                gap={spacing.md}
+                horizontalPadding={contentHorizontalPadding}
+                renderItem={(product, cardWidth) => (
                   <ProductCard
                     key={product.id}
                     product={product}
+                    cardWidth={cardWidth}
                     palette={homeCardPalette}
                     onPress={() => router.push(`/product/${product.id}`)}
                     onAddToCart={() => handleAddToCart(product)}
                   />
-                ))}
-              </View>
+                )}
+              />
             )}
           </View>
 
@@ -2762,7 +3103,7 @@ export default function HomeTabScreen() {
           ) : null}
 
           <View style={{ order: 23 } as ViewStyle}>
-            <DesktopSiteFooter />
+            <DesktopSiteFooter footer={footerContent} />
           </View>
 
         </View>

@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, SafeAreaView, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import EmptyState from "../../components/EmptyState";
 import SellerProductForm from "../../components/SellerProductForm";
@@ -52,7 +52,7 @@ export default function EditProductScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ padding: spacing.lg }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg }}>
           <Pressable
             onPress={() => router.back()}
@@ -117,7 +117,7 @@ export default function EditProductScreen() {
             }
           }}
         />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

@@ -62,6 +62,7 @@ export default function Root({ children }: PropsWithChildren) {
           ::-webkit-scrollbar-thumb:hover { background: rgba(0,102,204,0.4); }
           * { scrollbar-width: thin; scrollbar-color: rgba(0,102,204,0.2) transparent; }
           body { overflow: hidden; }
+          html, body, #root { max-width: 100%; overflow-x: hidden; }
           #root { display: flex; height: 100%; }
           html, body { height: 100%; }
           #expo-splash {

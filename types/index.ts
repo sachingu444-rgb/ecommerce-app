@@ -219,6 +219,15 @@ export interface BuyerHeroItem {
   category: string;
   accent: string;
   durationHours?: number;
+  heroHeight?: number;
+  bannerBackground?: string;
+  overlayStart?: string;
+  overlayEnd?: string;
+  textColor?: string;
+  subtitleColor?: string;
+  eyebrowColor?: string;
+  offerButtonColor?: string;
+  offerTextColor?: string;
 }
 
 export interface BuyerPromoGridItem {
@@ -245,6 +254,12 @@ export interface BuyerLovedOneItem {
   subtitle: string;
   image: string;
   category: string;
+  cardBackground?: string;
+  overlayStart?: string;
+  overlayEnd?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  cardHeight?: number;
 }
 
 export interface BuyerBrandSpotlightItem {
@@ -255,6 +270,14 @@ export interface BuyerBrandSpotlightItem {
   image: string;
   category: string;
   badge?: string;
+  cardBackground?: string;
+  brandColor?: string;
+  titleBarColor?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  badgeBackground?: string;
+  badgeTextColor?: string;
+  cardHeight?: number;
 }
 
 export interface BuyerMediaShowcaseItem {
@@ -349,6 +372,41 @@ export interface BuyerEditablePage {
 
 export type BuyerHomeSectionKey = "hero" | "promo" | "brandSpotlight" | "category" | "mediaShowcase" | "lovedOnes";
 
+export interface BuyerHomeDesign {
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  mutedColor: string;
+  borderColor: string;
+  primaryColor: string;
+  heroOverlayStart: string;
+  heroOverlayEnd: string;
+  sectionSpacing: number;
+  pagePadding: number;
+  cardRadius: number;
+}
+
+export interface BuyerHeaderContent {
+  announcement: string;
+  logoText: string;
+  searchPlaceholder: string;
+  backgroundColor: string;
+  textColor: string;
+  accentColor: string;
+  navLinks: string[];
+}
+
+export interface BuyerFooterContent {
+  heading: string;
+  mailAddress: string;
+  officeAddress: string;
+  copyright: string;
+  backgroundColor: string;
+  textColor: string;
+  mutedColor: string;
+  quickLinks: string[];
+}
+
 export interface BuyerHomeContent {
   heroes: BuyerHeroItem[];
   promoGrid: BuyerPromoGridItem[];
@@ -356,6 +414,7 @@ export interface BuyerHomeContent {
   lovedOnes: BuyerLovedOneItem[];
   brandSpotlight: BuyerBrandSpotlightItem[];
   mediaShowcase: BuyerMediaShowcase;
+  design?: BuyerHomeDesign;
   hiddenSections?: BuyerHomeSectionKey[];
   sectionOrder?: BuyerHomeSectionKey[];
   lovedOnesTitle: string;
@@ -377,6 +436,8 @@ export interface BuyerPageLabels {
 
 export interface BuyerPageContent {
   home: BuyerHomeContent;
+  header: BuyerHeaderContent;
+  footer: BuyerFooterContent;
   pages: BuyerPageLabels;
   categoryPages: BuyerCategoryPage[];
   editablePages: BuyerEditablePage[];

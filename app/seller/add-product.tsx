@@ -1,10 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   SafeAreaView,
+  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -84,7 +85,7 @@ export default function AddProductScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={{ flex: 1, padding: spacing.lg }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
         <View
           style={{
             flexDirection: "row",
@@ -188,7 +189,7 @@ export default function AddProductScreen() {
             }
           }}
         />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

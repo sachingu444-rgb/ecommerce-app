@@ -1,8 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useMemo, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  LayoutAnimation,
   Pressable,
   ScrollView,
   Switch,
@@ -12,7 +15,7 @@ import {
 
 import { getCategoryListingTemplate } from "../constants/productListing";
 import { categoryList } from "../constants/mockData";
-import { colors, radius, spacing } from "../constants/theme";
+import { colors, radius, shadows, spacing } from "../constants/theme";
 import {
   buildOptionGroupsFromInputs,
   buildSpecificationsFromInputs,
@@ -60,17 +63,90 @@ const categories = categoryList.filter((item) => item.name !== "All");
 const helperTextStyle = {
   color: colors.muted,
   fontSize: 12,
-  marginTop: -6,
+  marginTop: -4,
   marginBottom: spacing.md,
   lineHeight: 18,
 } as const;
 
-const sectionCardStyle = {
-  marginTop: spacing.xl,
-  backgroundColor: colors.white,
-  borderRadius: radius.lg,
-  padding: spacing.lg,
-} as const;
+// Accordion Component for Advanced Form Sections
+const AccordionSection = ({
+  title,
+  icon,
+  subtitle,
+  children,
+  defaultExpanded = false,
+  isComplete = false,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  subtitle: string;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+  isComplete?: boolean;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  const toggleExpand = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded(!expanded);
+  };
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.white,
+        borderRadius: radius.lg,
+        marginBottom: spacing.lg,
+        borderWidth: 1,
+        borderColor: expanded ? colors.primary : colors.border,
+        overflow: "hidden",
+        ...shadows.card,
+        shadowOpacity: expanded ? 0.08 : 0.03,
+      }}
+    >
+      <Pressable
+        onPress={toggleExpand}
+        style={({ hovered }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          padding: spacing.lg,
+          backgroundColor: expanded ? `${colors.primary}05` : hovered ? colors.bg : colors.white,
+        })}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: radius.md,
+            backgroundColor: isComplete ? `${colors.success}15` : expanded ? `${colors.primary}15` : colors.bg,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: spacing.md,
+          }}
+        >
+          <Ionicons name={isComplete ? "checkmark" : icon} size={20} color={isComplete ? colors.success : expanded ? colors.primary : colors.muted} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: expanded ? colors.primaryDark : colors.text }}>
+            {title}
+          </Text>
+          <Text style={{ fontSize: 13, color: colors.muted, marginTop: 2 }}>{subtitle}</Text>
+        </View>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={20}
+          color={colors.muted}
+        />
+      </Pressable>
+      
+      {expanded && (
+        <View style={{ padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white }}>
+          {children}
+        </View>
+      )}
+    </View>
+  );
+};
 
 const SellerProductForm = ({
   initialProduct,
@@ -105,6 +181,29 @@ const SellerProductForm = ({
   const [specificationInputs, setSpecificationInputs] = useState<Record<string, string>>(() =>
     specificationsToInputMap(initialProduct?.specifications)
   );
+  const [customOptionLabels, setCustomOptionLabels] = useState<string[]>([]);
+  const [customSpecLabels, setCustomSpecLabels] = useState<string[]>([]);
+  
+  // Extract existing custom fields that aren't in the template when editing
+  useEffect(() => {
+    if (initialProduct) {
+      const template = getCategoryListingTemplate(initialProduct.category);
+      const templateOptLabels = template.optionFields.map(f => f.label);
+      const templateSpecLabels = template.specFields.map(f => f.label);
+      
+      const customOpts = (initialProduct.options || [])
+        .map(o => o.name)
+        .filter(name => !templateOptLabels.includes(name));
+      
+      const customSpecs = (initialProduct.specifications || [])
+        .map(s => s.label)
+        .filter(label => !templateSpecLabels.includes(label));
+        
+      if (customOpts.length > 0) setCustomOptionLabels(customOpts);
+      if (customSpecs.length > 0) setCustomSpecLabels(customSpecs);
+    }
+  }, [initialProduct]);
+
   const [existingImages, setExistingImages] = useState<string[]>(
     initialProduct?.images || []
   );
@@ -118,6 +217,12 @@ const SellerProductForm = ({
     () => getCategoryListingTemplate(category),
     [category]
   );
+
+  // Completion calculations for visual progress
+  const isMediaComplete = totalImages > 0;
+  const isDetailsComplete = name.length > 3 && description.length > 20 && !!category;
+  const isPricingComplete = price.length > 0 && originalPrice.length > 0 && stock.length > 0;
+  const completionPercentage = [isMediaComplete, isDetailsComplete, isPricingComplete].filter(Boolean).length / 3 * 100;
 
   const pickImages = async () => {
     if (totalImages >= 5) {
@@ -164,188 +269,155 @@ const SellerProductForm = ({
   );
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: 120 }}
-    >
-      <Text
-        style={{
-          fontSize: 20,
-          fontWeight: "900",
-          color: colors.text,
-          marginBottom: spacing.md,
-        }}
-      >
-        Product Images
-      </Text>
-
-      <Pressable
-        onPress={pickImages}
-        style={{
-          borderWidth: 1.5,
-          borderColor: colors.border,
-          borderStyle: "dashed",
-          borderRadius: radius.lg,
-          backgroundColor: colors.white,
-          minHeight: 150,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: spacing.lg,
-        }}
-      >
-        <Ionicons name="add-circle-outline" size={34} color={colors.primary} />
-        <Text style={{ color: colors.text, fontWeight: "900", marginTop: spacing.sm }}>
-          Upload product images
-        </Text>
-        <Text style={{ color: colors.muted, marginTop: spacing.sm }}>
-          Tap to choose up to 5 images from your gallery
-        </Text>
-      </Pressable>
-
-      {uploadProgress > 0 && loading ? (
-        <View style={{ marginTop: spacing.md }}>
-          <Text style={{ color: colors.muted, marginBottom: spacing.sm }}>
-            Uploading images... {Math.round(uploadProgress)}%
-          </Text>
-          <View
-            style={{
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: colors.border,
-              overflow: "hidden",
-            }}
-          >
-            <View
-              style={{
-                width: `${uploadProgress}%`,
-                height: "100%",
-                backgroundColor: colors.primary,
-              }}
-            />
-          </View>
+    <View style={{ paddingBottom: 120 }}>
+      {/* Progress Header */}
+      <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.sm }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>Listing Completion</Text>
+          <Text style={{ color: colors.primary, fontWeight: "800" }}>{Math.round(completionPercentage)}%</Text>
         </View>
-      ) : null}
+        <View style={{ height: 8, borderRadius: radius.pill, backgroundColor: colors.border, overflow: "hidden" }}>
+          <LinearGradient
+            colors={[colors.primaryLight, colors.primary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ width: `${completionPercentage}%`, height: "100%", borderRadius: radius.pill }}
+          />
+        </View>
+      </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ marginTop: spacing.md }}
+      <AccordionSection
+        title="Product Media"
+        icon="images-outline"
+        subtitle="High quality images increase sales by up to 40%."
+        defaultExpanded={true}
+        isComplete={isMediaComplete}
       >
-        {existingImages.map((image) => (
-          <View key={image} style={{ marginRight: spacing.md }}>
-            <AppImage
-              uri={image}
-              resizeMode="contain"
-              containerStyle={{
-                width: 110,
-                height: 110,
-                borderRadius: radius.lg,
-                backgroundColor: colors.bg,
-              }}
-            />
-            <Pressable
-              onPress={() =>
-                setExistingImages((current) => current.filter((item) => item !== image))
-              }
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                backgroundColor: "rgba(0,0,0,0.62)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="close" size={16} color={colors.white} />
-            </Pressable>
-          </View>
-        ))}
-        {newAssets.map((asset) => (
-          <View key={asset.uri} style={{ marginRight: spacing.md }}>
-            <AppImage
-              uri={asset.uri}
-              resizeMode="contain"
-              containerStyle={{
-                width: 110,
-                height: 110,
-                borderRadius: radius.lg,
-                backgroundColor: colors.bg,
-              }}
-            />
-            <Pressable
-              onPress={() =>
-                setNewAssets((current) => current.filter((item) => item.uri !== asset.uri))
-              }
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                backgroundColor: "rgba(0,0,0,0.62)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="close" size={16} color={colors.white} />
-            </Pressable>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View style={sectionCardStyle}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "900",
-            color: colors.text,
+        <Pressable
+          onPress={pickImages}
+          style={({ hovered }) => ({
+            borderWidth: 2,
+            borderColor: hovered ? colors.primary : colors.border,
+            borderStyle: "dashed",
+            borderRadius: radius.lg,
+            backgroundColor: hovered ? `${colors.primary}05` : colors.bg,
+            minHeight: 160,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: spacing.xl,
             marginBottom: spacing.md,
-          }}
+          })}
         >
-          Product Details
-        </Text>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, ...shadows.card }}>
+            <Ionicons name="cloud-upload" size={28} color={colors.primary} />
+          </View>
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
+            Drag & Drop or Click to Upload
+          </Text>
+          <Text style={{ color: colors.muted, textAlign: "center" }}>
+            Add up to 5 high-resolution images (JPEG, PNG). The first image will be the cover.
+          </Text>
+        </Pressable>
+
+        {uploadProgress > 0 && loading ? (
+          <View style={{ marginBottom: spacing.md, padding: spacing.md, backgroundColor: `${colors.primary}10`, borderRadius: radius.md }}>
+            <Text style={{ color: colors.primaryDark, fontWeight: "700", marginBottom: spacing.xs }}>
+              Uploading Media ({Math.round(uploadProgress)}%)
+            </Text>
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: "rgba(0,0,0,0.1)", overflow: "hidden" }}>
+              <View style={{ width: `${uploadProgress}%`, height: "100%", backgroundColor: colors.primary }} />
+            </View>
+          </View>
+        ) : null}
+
+        {(existingImages.length > 0 || newAssets.length > 0) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {existingImages.map((image, index) => (
+              <View key={image} style={{ marginRight: spacing.md }}>
+                <AppImage
+                  uri={image}
+                  resizeMode="cover"
+                  containerStyle={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: radius.md,
+                    backgroundColor: colors.bg,
+                    borderWidth: index === 0 ? 2 : 1,
+                    borderColor: index === 0 ? colors.primary : colors.border,
+                  }}
+                />
+                {index === 0 && (
+                  <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: colors.primary, paddingVertical: 4, borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md }}>
+                    <Text style={{ color: colors.white, fontSize: 10, fontWeight: "800", textAlign: "center", textTransform: "uppercase" }}>COVER</Text>
+                  </View>
+                )}
+                <Pressable
+                  onPress={() => setExistingImages((current) => current.filter((item) => item !== image))}
+                  style={{
+                    position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14,
+                    backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="close" size={18} color={colors.white} />
+                </Pressable>
+              </View>
+            ))}
+            {newAssets.map((asset, index) => {
+              const isCover = existingImages.length === 0 && index === 0;
+              return (
+                <View key={asset.uri} style={{ marginRight: spacing.md }}>
+                  <AppImage
+                    uri={asset.uri}
+                    resizeMode="cover"
+                    containerStyle={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: radius.md,
+                      backgroundColor: colors.bg,
+                      borderWidth: isCover ? 2 : 1,
+                      borderColor: isCover ? colors.primary : colors.border,
+                    }}
+                  />
+                  {isCover && (
+                    <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: colors.primary, paddingVertical: 4, borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md }}>
+                      <Text style={{ color: colors.white, fontSize: 10, fontWeight: "800", textAlign: "center", textTransform: "uppercase" }}>COVER</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    onPress={() => setNewAssets((current) => current.filter((item) => item.uri !== asset.uri))}
+                    style={{
+                      position: "absolute", top: 6, right: 6, width: 28, height: 28, borderRadius: 14,
+                      backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <Ionicons name="close" size={18} color={colors.white} />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
+      </AccordionSection>
+
+      <AccordionSection
+        title="Core Information"
+        icon="document-text-outline"
+        subtitle="Title, category, and main description."
+        defaultExpanded={true}
+        isComplete={isDetailsComplete}
+      >
         <FormField
-          label="Product Name"
-          icon="cube-outline"
+          label="Product Name (Required)"
+          icon="text"
           value={name}
           onChangeText={setName}
-          placeholder="Product name"
+          placeholder="e.g. Apple AirPods Pro (2nd Gen)"
         />
-        <FormField
-          label="Listing Subtitle"
-          icon="information-circle-outline"
-          value={subtitle}
-          onChangeText={setSubtitle}
-          placeholder="Short subtitle shown below the product name"
-        />
-        <FormField
-          label="Brand / Label"
-          icon="ribbon-outline"
-          value={brand}
-          onChangeText={setBrand}
-          placeholder="Brand name or store label"
-        />
-
-        <Text
-          style={{
-            color: colors.text,
-            fontSize: 13,
-            fontWeight: "700",
-            marginBottom: spacing.sm,
-          }}
-        >
-          Category
+        
+        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", marginTop: spacing.xs, marginBottom: spacing.sm }}>
+          Primary Category
         </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: spacing.sm }}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>
           {categories.map((item) => {
             const active = category === item.name;
             return (
@@ -353,14 +425,19 @@ const SellerProductForm = ({
                 key={item.id}
                 onPress={() => setCategory(item.name)}
                 style={{
+                  flexDirection: "row",
+                  alignItems: "center",
                   paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.sm + 2,
+                  paddingVertical: 10,
                   borderRadius: radius.pill,
                   marginRight: spacing.sm,
                   backgroundColor: active ? item.color : colors.bg,
+                  borderWidth: 1,
+                  borderColor: active ? item.color : colors.border,
                 }}
               >
-                <Text style={{ color: active ? colors.white : colors.text, fontWeight: "800" }}>
+                <Ionicons name={item.icon as any} size={16} color={active ? colors.white : colors.muted} style={{ marginRight: 6 }} />
+                <Text style={{ color: active ? colors.white : colors.text, fontWeight: active ? "800" : "600" }}>
                   {item.name}
                 </Text>
               </Pressable>
@@ -368,92 +445,123 @@ const SellerProductForm = ({
           })}
         </ScrollView>
 
+        <View style={{ flexDirection: "row", gap: spacing.md }}>
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Brand Name"
+              icon="ribbon-outline"
+              value={brand}
+              onChangeText={setBrand}
+              placeholder="e.g. Apple"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Subtitle (Optional)"
+              icon="information-circle-outline"
+              value={subtitle}
+              onChangeText={setSubtitle}
+              placeholder="Short catchy phrase"
+            />
+          </View>
+        </View>
+
         <FormField
-          label="Description"
-          icon="document-text-outline"
+          label="Detailed Description"
+          icon="reader-outline"
           value={description}
           onChangeText={setDescription}
-          placeholder="Write a product description"
+          placeholder="Describe the product, its features, and what makes it great..."
           multiline
-          inputStyle={{ minHeight: 120, textAlignVertical: "top" }}
+          inputStyle={{ minHeight: 140, textAlignVertical: "top" }}
         />
-        <FormField
-          label="Price"
-          icon="cash-outline"
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="decimal-pad"
-          placeholder="Selling price"
-        />
-        <FormField
-          label="Original Price"
-          icon="pricetags-outline"
-          value={originalPrice}
-          onChangeText={setOriginalPrice}
-          keyboardType="decimal-pad"
-          placeholder="Original price"
-        />
-        <FormField
-          label="Stock Quantity"
-          icon="layers-outline"
-          value={stock}
-          onChangeText={setStock}
-          keyboardType="number-pad"
-          placeholder="Available stock"
-        />
-      </View>
+      </AccordionSection>
 
-      <View style={sectionCardStyle}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "900",
-            color: colors.text,
-            marginBottom: spacing.xs,
-          }}
-        >
-          Marketplace Listing
-        </Text>
-        <Text style={{ color: colors.muted, marginBottom: spacing.lg, lineHeight: 20 }}>
-          Buyer options, product specs, delivery notes, and policy details update automatically
-          based on the selected category.
-        </Text>
-
-        <Text
-          style={{
-            color: colors.text,
-            fontSize: 15,
-            fontWeight: "900",
-            marginBottom: spacing.md,
-          }}
-        >
-          Buyer Options for {category}
-        </Text>
-        {categoryTemplate.optionFields.map((field) => (
-          <View key={field.label}>
+      <AccordionSection
+        title="Pricing & Inventory"
+        icon="pricetags-outline"
+        subtitle="Manage cost, discounts, and available stock."
+        isComplete={isPricingComplete}
+      >
+        <View style={{ flexDirection: "row", gap: spacing.md }}>
+          <View style={{ flex: 1 }}>
             <FormField
-              label={field.label}
-              icon="git-branch-outline"
-              value={currentOptionInputs[field.label]}
-              onChangeText={(value: string) =>
-                setOptionInputs((current) => ({ ...current, [field.label]: value }))
-              }
-              placeholder={field.placeholder}
+              label="Selling Price (â‚¹)"
+              icon="cash"
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 24900"
             />
-            <Text style={helperTextStyle}>{field.helper}</Text>
           </View>
-        ))}
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="MRP / Original Price (â‚¹)"
+              icon="pricetag-outline"
+              value={originalPrice}
+              onChangeText={setOriginalPrice}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 26900"
+            />
+          </View>
+        </View>
+        
+        {Number(originalPrice) > Number(price) && price !== "" && (
+          <View style={{ backgroundColor: `${colors.success}15`, padding: spacing.sm, borderRadius: radius.md, marginBottom: spacing.md, flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="pricetag" size={16} color={colors.success} style={{ marginRight: 8 }} />
+            <Text style={{ color: colors.success, fontWeight: "700" }}>
+              Discount: {Math.round(((Number(originalPrice) - Number(price)) / Number(originalPrice)) * 100)}% off
+            </Text>
+          </View>
+        )}
 
-        <Text
-          style={{
-            color: colors.text,
-            fontSize: 15,
-            fontWeight: "900",
-            marginTop: spacing.sm,
-            marginBottom: spacing.md,
-          }}
-        >
-          Key Specifications
+        <View style={{ width: "50%" }}>
+          <FormField
+            label="Initial Stock Quantity"
+            icon="layers-outline"
+            value={stock}
+            onChangeText={setStock}
+            keyboardType="number-pad"
+            placeholder="Available units"
+          />
+        </View>
+      </AccordionSection>
+
+      <AccordionSection
+        title={`Variants & Specifications (${category})`}
+        icon="options-outline"
+        subtitle="Dynamic options based on the chosen category."
+      >
+        <View style={{ backgroundColor: `${colors.primary}0A`, padding: spacing.md, borderRadius: radius.md, marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.primaryDark, fontWeight: "700", marginBottom: 4 }}>Dynamic Template Active</Text>
+          <Text style={{ color: colors.text, fontSize: 13 }}>Showing specification fields recommended for {category} products.</Text>
+        </View>
+
+        {categoryTemplate.optionFields.length > 0 && (
+          <>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900", marginBottom: spacing.sm }}>
+              Buyer Options
+            </Text>
+            {categoryTemplate.optionFields.map((field) => (
+              <View key={field.label}>
+                <FormField
+                  label={field.label}
+                  icon="git-branch-outline"
+                  value={currentOptionInputs[field.label]}
+                  onChangeText={(value: string) =>
+                    setOptionInputs((current) => ({ ...current, [field.label]: value }))
+                  }
+                  placeholder={field.placeholder}
+                />
+                <Text style={helperTextStyle}>{field.helper}</Text>
+              </View>
+            ))}
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: spacing.md }} />
+          </>
+        )}
+
+        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900", marginBottom: spacing.sm }}>
+          Technical Specifications
         </Text>
         {categoryTemplate.specFields.map((field) => (
           <View key={field.label}>
@@ -474,122 +582,117 @@ const SellerProductForm = ({
         ))}
 
         <FormField
-          label="Product Highlights"
+          label="Bullet Highlights"
           icon="sparkles-outline"
           value={highlightsInput}
           onChangeText={setHighlightsInput}
           placeholder={categoryTemplate.highlightSuggestions.join("\n")}
           multiline
-          inputStyle={{ minHeight: 120, textAlignVertical: "top" }}
+          inputStyle={{ minHeight: 100, textAlignVertical: "top" }}
         />
-        <Text style={helperTextStyle}>
-          Add one highlight per line. Lead with the top reason a shopper should choose this product.
-        </Text>
+        <Text style={helperTextStyle}>Provide key marketing points (one per line).</Text>
+      </AccordionSection>
 
+      <AccordionSection
+        title="Shipping & Policies"
+        icon="cube-outline"
+        subtitle="Delivery expectations and return rules."
+      >
         <FormField
-          label="Delivery Notes"
+          label="Delivery Details & Speed"
           icon="car-outline"
           value={deliveryInfoInput}
           onChangeText={setDeliveryInfoInput}
           placeholder={categoryTemplate.deliverySuggestions.join("\n")}
           multiline
-          inputStyle={{ minHeight: 100, textAlignVertical: "top" }}
+          inputStyle={{ minHeight: 80, textAlignVertical: "top" }}
         />
-        <Text style={helperTextStyle}>
-          Add one delivery or support point per line, like dispatch speed or packaging.
-        </Text>
+        <Text style={helperTextStyle}>e.g. Dispatches in 24 hours (one per line).</Text>
 
-        <FormField
-          label="Return Policy"
-          icon="refresh-outline"
-          value={returnPolicy}
-          onChangeText={setReturnPolicy}
-          placeholder={categoryTemplate.returnPolicyHint}
-        />
-        <FormField
-          label="Warranty / Seller Support"
-          icon="shield-checkmark-outline"
-          value={warranty}
-          onChangeText={setWarranty}
-          placeholder={categoryTemplate.warrantyHint}
-        />
-      </View>
-
-      <View style={sectionCardStyle}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "900",
-            color: colors.text,
-            marginBottom: spacing.md,
-          }}
-        >
-          Merchandising
-        </Text>
-
-        <View style={{ gap: spacing.md }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1, paddingRight: spacing.md }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Featured Product</Text>
-              <Text style={{ color: colors.muted, marginTop: 4 }}>
-                Show this listing in featured product grids and collections.
-              </Text>
-            </View>
-            <Switch
-              value={isFeatured}
-              onValueChange={setIsFeatured}
-              trackColor={{ false: "#CBD5E1", true: colors.primary }}
-              thumbColor={colors.white}
+        <View style={{ flexDirection: "row", gap: spacing.md }}>
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Return Policy"
+              icon="refresh-outline"
+              value={returnPolicy}
+              onChangeText={setReturnPolicy}
+              placeholder={categoryTemplate.returnPolicyHint}
             />
           </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1, paddingRight: spacing.md }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Deal of the Day</Text>
-              <Text style={{ color: colors.muted, marginTop: 4 }}>
-                Surface this item in deal modules for stronger buyer visibility.
-              </Text>
-            </View>
-            <Switch
-              value={isDeal}
-              onValueChange={setIsDeal}
-              trackColor={{ false: "#CBD5E1", true: colors.accent }}
-              thumbColor={colors.white}
+          <View style={{ flex: 1 }}>
+            <FormField
+              label="Warranty Provider"
+              icon="shield-checkmark-outline"
+              value={warranty}
+              onChangeText={setWarranty}
+              placeholder={categoryTemplate.warrantyHint}
             />
           </View>
         </View>
+      </AccordionSection>
 
+      <AccordionSection
+        title="Publishing Details"
+        icon="rocket-outline"
+        subtitle="Visibility and merchandising controls."
+      >
+        <Pressable
+          onPress={() => setIsFeatured(!isFeatured)}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.bg }}
+        >
+          <View style={{ flex: 1, paddingRight: spacing.md }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Featured Product</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+              Boost visibility in category pages and search results.
+            </Text>
+          </View>
+          <Switch
+            value={isFeatured}
+            onValueChange={setIsFeatured}
+            trackColor={{ false: "#CBD5E1", true: colors.primary }}
+            thumbColor={colors.white}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={() => setIsDeal(!isDeal)}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md }}
+        >
+          <View style={{ flex: 1, paddingRight: spacing.md }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Promote as Deal</Text>
+            <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
+              Highlight this item in "Deals of the Day" collections.
+            </Text>
+          </View>
+          <Switch
+            value={isDeal}
+            onValueChange={setIsDeal}
+            trackColor={{ false: "#CBD5E1", true: colors.accent }}
+            thumbColor={colors.white}
+          />
+        </Pressable>
+      </AccordionSection>
+
+      <View style={{ marginTop: spacing.xl, paddingHorizontal: spacing.sm }}>
         <Pressable
           disabled={loading}
           onPress={async () => {
             if (!name.trim() || !description.trim() || description.trim().length < 20) {
               showToast(
                 "error",
-                "Add a clearer description",
-                "Descriptions should be at least 20 characters."
+                "More details needed",
+                "Product name and description (min 20 chars) are required."
               );
               return;
             }
 
             if (!price.trim() || !originalPrice.trim() || !stock.trim()) {
-              showToast("error", "Price, original price and stock are required.");
+              showToast("error", "Missing Information", "Price, original price and stock are required.");
               return;
             }
 
             if (totalImages === 0) {
-              showToast("error", "At least one image is required.");
+              showToast("error", "Missing Media", "At least one product image is required.");
               return;
             }
 
@@ -614,23 +717,36 @@ const SellerProductForm = ({
               newAssets,
             });
           }}
-          style={{
-            marginTop: spacing.xl,
+          style={({ pressed }) => ({
             backgroundColor: colors.primary,
             borderRadius: radius.md,
             alignItems: "center",
-            paddingVertical: spacing.md + 2,
-          }}
+            paddingVertical: 16,
+            flexDirection: "row",
+            justifyContent: "center",
+            gap: spacing.sm,
+            opacity: pressed ? 0.9 : 1,
+            transform: [{ scale: pressed ? 0.99 : 1 }],
+            ...shadows.card,
+            shadowColor: colors.primary,
+          })}
         >
           {loading ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={{ color: colors.white, fontWeight: "900" }}>{submitLabel}</Text>
+            <>
+              <Ionicons name="cloud-upload" size={20} color={colors.white} />
+              <Text style={{ color: colors.white, fontWeight: "900", fontSize: 16 }}>{submitLabel}</Text>
+            </>
           )}
         </Pressable>
+        <Text style={{ color: colors.muted, textAlign: "center", marginTop: spacing.md, fontSize: 13 }}>
+          By publishing, you agree to the Seller Marketplace Guidelines.
+        </Text>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
 export default SellerProductForm;
+
