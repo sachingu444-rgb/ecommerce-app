@@ -41,7 +41,7 @@ export interface ResumeData {
 export const resumeData: ResumeData = {
   initials: "SG",
   name: "Sachin Gupta",
-  title: "Digital Marketing Executive",
+  title: "Senior Digital Marketing Executive",
   location: "Mumbai, India",
   summary:
     "Senior Digital Marketing Executive with expertise in Google Ads, SEO, social media marketing, and e-commerce growth. Passionate about vibe coding, building digital products, and using AI tools to improve sales, brand visibility, and business performance.",
@@ -70,15 +70,14 @@ export const resumeData: ResumeData = {
     "Digital Marketing",
     "SEO & Google Ads",
     "Social Media Ads",
-    "Shopify",
+    "E-commerce & Shopify",
     "WordPress",
-    "Email Marketing",
-    "Vibe Coding",
-    "HTML & CSS",
-    "React",
-    "Prompt Engineering",
-    "Figma",
+    "Application Development",
     "Website Design",
+    "Vibe Coding",
+    "HTML, CSS & React",
+    "Prompt Engineering",
+    "Figma & UI/UX",
     "Flipkart & Amazon",
   ],
   education: [
@@ -89,7 +88,11 @@ export const resumeData: ResumeData = {
     },
     {
       degree: "Certification",
-      field: "Digital Marketing & Video Editing",
+      field: "Digital Marketing",
+    },
+    {
+      degree: "Certification",
+      field: "Video Editing",
     },
   ],
   projects: [
@@ -102,6 +105,18 @@ export const resumeData: ResumeData = {
     },
   ],
   experience: [
+    {
+      company: "Jafry's Metal Stickers",
+      location: "Mumbai",
+      period: "2025 - Present",
+      role: "Digital Marketing Head",
+      responsibilities: [
+        "Lead end-to-end digital marketing strategy, brand building, and online presence.",
+        "Scale paid ads on Google, Meta, and Instagram; manage Flipkart and Amazon.",
+        "Oversee SEO, content creation, and creatives to drive qualified traffic.",
+        "Use AI tools and analytics to continuously optimize campaigns and ROI.",
+      ],
+    },
     {
       company: "Muscle Gears Sports Nutrition PVT. LTD",
       location: "Navi Mumbai",
@@ -274,7 +289,7 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .hero {
             background: linear-gradient(135deg, #0d1b2a 0%, #102f55 55%, #174b85 100%);
             color: #ffffff;
-            padding: 18px 20px;
+            padding: 14px 18px;
             border-radius: 22px 22px 0 0;
           }
 
@@ -323,8 +338,8 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
             display: grid;
             grid-template-columns: 220px minmax(0, 1fr);
             align-items: start;
-            gap: 16px;
-            padding-top: 16px;
+            gap: 12px;
+            padding-top: 12px;
           }
 
           .sidebar {
@@ -338,13 +353,13 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           }
 
           .section {
-            margin-bottom: 14px;
+            margin-bottom: 10px;
             break-inside: avoid;
             page-break-inside: avoid;
             background: #ffffff;
             border: 1px solid #e1e8f0;
-            border-radius: 18px;
-            padding: 16px;
+            border-radius: 14px;
+            padding: 12px;
             box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
           }
 
@@ -358,12 +373,12 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
             text-transform: uppercase;
             color: #9a6f0b;
             font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
           }
 
           .contact-row,
           .education-item {
-            margin-bottom: 10px;
+            margin-bottom: 7px;
           }
 
           .contact-label,
@@ -393,13 +408,13 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .pill-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 5px;
+            gap: 4px;
           }
 
           .skill-pill,
           .tech-pill {
             display: inline-block;
-            padding: 3px 7px;
+            padding: 2px 6px;
             border-radius: 999px;
             font-size: 8px;
             font-weight: 700;
@@ -420,8 +435,8 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .profile-card {
             background: #ffffff;
             border: 1px solid #e4e7ec;
-            border-radius: 14px;
-            padding: 12px;
+            border-radius: 10px;
+            padding: 9px;
           }
 
           .project-card,
@@ -437,7 +452,7 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .experience-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
+            gap: 8px;
           }
 
           .main-top-grid > div,
@@ -479,7 +494,7 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
 
           .project-description,
           .profile-card p {
-            margin-top: 6px;
+            margin-top: 4px;
             font-size: 10px;
             line-height: 1.45;
             color: #475467;
@@ -492,8 +507,8 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .job-row {
             display: grid;
             grid-template-columns: 18px minmax(0, 1fr);
-            gap: 12px;
-            margin-bottom: 14px;
+            gap: 8px;
+            margin-bottom: 9px;
           }
 
           .job-row:last-child {
@@ -528,17 +543,17 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
           .job-role {
             font-size: 9px;
             color: #667085;
-            margin-top: 5px;
+            margin-top: 3px;
             font-style: italic;
           }
 
           .job-list {
-            margin: 6px 0 0;
+            margin: 4px 0 0;
             padding-left: 14px;
           }
 
           .job-list li {
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             font-size: 8px;
             line-height: 1.35;
             color: #475467;
@@ -630,7 +645,6 @@ export const buildResumeHtml = (resume: ResumeData = resumeData) => {
                 <div class="title">${escapeHtml(resume.title)}</div>
               </div>
             </div>
-            <div class="summary">${escapeHtml(resume.summary)}</div>
           </div>
 
           <div class="body">
