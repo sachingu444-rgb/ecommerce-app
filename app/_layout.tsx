@@ -2,7 +2,7 @@ import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Appearance, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 
@@ -54,10 +54,6 @@ const RootNavigator = () => {
 
   useCartSync();
   usePushNotifications(user?.uid);
-
-  useEffect(() => {
-    Appearance.setColorScheme("light");
-  }, []);
 
   useEffect(() => {
     const hideWebSplash = () => {
